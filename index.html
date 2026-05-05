@@ -2397,9 +2397,10 @@ select.inp{appearance:none;cursor:pointer;}
         <div style="font-family:var(--display);font-size:1.3rem;font-weight:800;margin-bottom:.2rem;">Painel de Missões Ativas</div>
         <div style="font-size:.72rem;color:var(--muted2);">Mantenha o foco e siga as metas recomendadas para o seu ciclo.</div>
       </div>
-      <div style="display:flex;gap:.4rem;">
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
         <button class="btn btn-ghost" style="font-size:.68rem;" onclick="missoesNewCiclo()">+ Novo Ciclo</button>
         <button class="btn btn-ghost" style="font-size:.68rem;" onclick="missaoNovaOpen()">+ Missão Manual</button>
+        <button class="btn btn-ghost" style="font-size:.68rem;color:#4a6cf7;border-color:rgba(74,108,247,.4);" onclick="missoesPlanoOpen()">📋 Plano SEFAZ CE</button>
         <button class="btn btn-gold"  style="font-size:.68rem;" onclick="missoesAutoGen()">⚡ Gerar Missões</button>
       </div>
     </div>
@@ -2746,6 +2747,16 @@ select.inp{appearance:none;cursor:pointer;}
       </div>
     </div>
 
+    <!-- Meta de Questões -->
+    <div style="margin-bottom:.65rem;">
+      <div style="font-size:.6rem;color:#6b7280;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">META DE QUESTÕES <span style="color:#4b5563;font-weight:400;">(por sessão · 0 = livre)</span></div>
+      <div style="display:flex;align-items:center;gap:.5rem;">
+        <input id="mn-meta" type="number" value="80" min="0" max="1000" step="10"
+          style="flex:1;background:#111827;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#f0b429;font-size:.8rem;font-weight:700;padding:.45rem .5rem;outline:none;font-family:inherit;box-sizing:border-box;text-align:center;"/>
+        <span style="font-size:.65rem;color:#6b7280;flex-shrink:0;">questões</span>
+      </div>
+    </div>
+
     <!-- Dia -->
     <div style="margin-bottom:.85rem;">
       <div style="font-size:.6rem;color:#6b7280;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;">DIA DA MISSÃO</div>
@@ -2755,6 +2766,47 @@ select.inp{appearance:none;cursor:pointer;}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
       <button onclick="missaoNovaConfirm()" style="background:linear-gradient(135deg,#4a6cf7,#6366f1);border:none;border-radius:9px;color:#fff;font-size:.75rem;font-weight:800;padding:.55rem;cursor:pointer;font-family:inherit;">+ Adicionar</button>
       <button onclick="missaoNovaClose()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#9ca3af;font-size:.75rem;font-weight:700;padding:.55rem;cursor:pointer;font-family:inherit;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Plano SEFAZ CE 2026 -->
+<div id="plano-sefaz-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:flex-start;justify-content:center;padding-top:40px;overflow-y:auto;" onclick="if(event.target===this)missoesPlanoClose()">
+  <div style="background:#111827;border:1px solid rgba(74,108,247,.25);border-radius:18px;padding:1.5rem;width:520px;max-width:96vw;box-shadow:0 8px 50px rgba(0,0,0,.6);margin-bottom:40px;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.2rem;">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#4a6cf7,#6366f1);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📋</div>
+      <div>
+        <div style="font-size:.85rem;font-weight:800;color:#f1f5f9;">Plano SEFAZ CE 2026</div>
+        <div style="font-size:.62rem;color:#6b80a8;">Auditor Fiscal · Gestão Fazendária · FCC · 87 dias · 4h/dia</div>
+      </div>
+      <button onclick="missoesPlanoClose()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:#6b7280;font-size:1.2rem;line-height:1;">✕</button>
+    </div>
+
+    <!-- Stats bar -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1.2rem;">
+      <div style="background:rgba(74,108,247,.08);border:1px solid rgba(74,108,247,.2);border-radius:10px;padding:.5rem;text-align:center;">
+        <div style="font-size:1rem;font-weight:800;color:#4a6cf7;">12</div>
+        <div style="font-size:.55rem;color:#6b80a8;">SEMANAS</div>
+      </div>
+      <div style="background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.2);border-radius:10px;padding:.5rem;text-align:center;">
+        <div style="font-size:1rem;font-weight:800;color:#f0b429;">~8.700</div>
+        <div style="font-size:.55rem;color:#6b80a8;">QUESTÕES META</div>
+      </div>
+      <div style="background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:.5rem;text-align:center;">
+        <div style="font-size:1rem;font-weight:800;color:#34d399;">100</div>
+        <div style="font-size:.55rem;color:#6b80a8;">Q/DIA META</div>
+      </div>
+    </div>
+
+    <!-- Week selector -->
+    <div style="font-size:.6rem;font-weight:700;letter-spacing:2px;color:#475569;text-transform:uppercase;margin-bottom:.6rem;">ESCOLHA A SEMANA PARA CARREGAR</div>
+    <div id="plano-semanas-list" style="display:flex;flex-direction:column;gap:.4rem;max-height:360px;overflow-y:auto;padding-right:4px;"></div>
+
+    <!-- Footer buttons -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:1rem;">
+      <button id="plano-load-btn" onclick="missoesPlanoLoad()" style="background:linear-gradient(135deg,#4a6cf7,#6366f1);border:none;border-radius:9px;color:#fff;font-size:.75rem;font-weight:800;padding:.6rem;cursor:pointer;font-family:inherit;">⚡ Carregar Semana</button>
+      <button onclick="missoesPlanoClose()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#9ca3af;font-size:.75rem;font-weight:700;padding:.6rem;cursor:pointer;font-family:inherit;">Fechar</button>
     </div>
   </div>
 </div>
@@ -4677,15 +4729,15 @@ function setStyle(id,p,v){const e=document.getElementById(id);if(e)e.style[p]=v;
 
 // ═══ DISCIPLINES ══════════════════════════════
 function renderDisciplines(){
-  const list=document.getElementById('discipline-list'),sel=document.getElementById('active-subject-select'),slotSel=document.getElementById('slot-subject-select'),prev=sel.value;
-  list.innerHTML='';sel.innerHTML='<option value="">— escolha —</option>';slotSel.innerHTML='<option value="">— vazio —</option>';
+  const list=document.getElementById('discipline-list'),sel=document.getElementById('active-subject-select'),slotSel=document.getElementById('slot-subject-select'),prev=sel?sel.value:'';
+  if(list)list.innerHTML='';if(sel)sel.innerHTML='<option value="">— escolha —</option>';if(slotSel)slotSel.innerHTML='<option value="">— vazio —</option>';
   state.disciplines.forEach(d=>{
     const secs=state.sessions.filter(s=>s.subjectId===d.id).reduce((a,b)=>a+b.seconds,0);
     const item=document.createElement('div');item.className='disc-item';
     item.innerHTML=`<div style="width:9px;height:9px;border-radius:50%;background:${d.color};flex-shrink:0;box-shadow:0 0 7px ${d.color}66"></div><div style="flex:1;font-size:.8rem;font-weight:700">${d.name}</div><div style="font-family:var(--mono);font-size:.65rem;color:var(--muted)">${formatHM(secs)}</div><button onclick="removeDiscipline('${d.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.88rem;padding:0 3px">×</button>`;
-    list.appendChild(item);sel.appendChild(new Option(d.name,d.id));slotSel.appendChild(new Option(d.name,d.id));
+    if(list)list.appendChild(item);if(sel)sel.appendChild(new Option(d.name,d.id));if(slotSel)slotSel.appendChild(new Option(d.name,d.id));
   });
-  if(prev)sel.value=prev;syncQDisciplineSelects();renderSpeedSettings();
+  if(prev&&sel)sel.value=prev;syncQDisciplineSelects();renderSpeedSettings();
 }
 function removeDiscipline(id){state.disciplines=state.disciplines.filter(d=>d.id!==id);saveState();renderDisciplines();renderProgress();}
 function openAddModal(){document.getElementById('modal-name').value='';document.getElementById('modal-goal').value=10;document.getElementById('modal-overlay').classList.add('open');}
@@ -12679,6 +12731,12 @@ function missoesUpdateDuration(id, val) {
   const n = parseInt(val);
   if (m && n > 0) { m.durationMins = n; saveState(); }
 }
+function missoesUpdateMeta(id, val) {
+  missoesEnsure();
+  const m = state.missoesCiclo.missions.find(x=>x.id===id);
+  const n = parseInt(val);
+  if (m && n >= 0) { m.metaQuestoes = n; saveState(); }
+}
 function missoesUpdateTipo(id, val) {
   missoesEnsure();
   const m = state.missoesCiclo.missions.find(x=>x.id===id);
@@ -13271,6 +13329,9 @@ function missoesCardHTML(m) {
   const color    = m.discColor || '#5a6a8a';
   const tipoLabel= TIPO_LABELS[m.tipo] || m.tipo;
 
+  const metaQ = m.metaQuestoes || 0;
+  const linkDomain = m.link ? (m.link.includes('tecconcursos') ? '📚 TEC' : m.link.includes('estrategia') ? '📘 Estratégia' : '🔗 Link') : '';
+
   return `<div class="missoes-card${isDone?' done':''}" id="mcard-${m.id}"
     draggable="true"
     ondragstart="missDragStart(event,'${m.id}')"
@@ -13279,7 +13340,7 @@ function missoesCardHTML(m) {
     ondragend="missDragEnd(event)"
     style="border-top:3px solid ${color}44;">
 
-    <!-- Disc tag + drag handle -->
+    <!-- Disc tag + drag handle + done badge -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">
       <div style="display:flex;align-items:center;gap:4px;">
         <span class="missoes-drag-handle" title="Arrastar para reordenar">⠿</span>
@@ -13288,32 +13349,54 @@ function missoesCardHTML(m) {
           ● ${m.discName} <span style="opacity:.5;font-size:.5rem;">✏</span>
         </div>
       </div>
-      ${isDone ? '<span style="color:var(--green);font-size:.85rem;">✓</span>' : ''}
+      ${isDone ? '<span style="color:var(--green);font-size:.85rem;" title="Concluída">✓</span>' : ''}
     </div>
 
-    <!-- Title editable -->
+    <!-- Title / Assunto (editable) -->
     <div class="missoes-card-title" id="mtitle-${m.id}"
       contenteditable="true" spellcheck="false"
       onclick="event.stopPropagation()"
       onblur="missoesUpdateTitle('${m.id}',this.textContent)"
       style="outline:none;cursor:text;border-radius:4px;padding:1px 3px;margin-left:-3px;transition:background .15s;"
       onfocus="this.style.background='rgba(255,255,255,.06)'"
-      onblur2="this.style.background='transparent'"
     >${m.title}</div>
 
-    <div class="missoes-card-sub">${m.subtitulo||''}</div>
+    <!-- Caderno link (full button) -->
+    <div style="margin:.4rem 0 .5rem;min-height:22px;" onclick="event.stopPropagation()">
+      ${m.link
+        ? `<a href="${m.link}" target="_blank" rel="noopener"
+            style="display:inline-flex;align-items:center;gap:4px;background:rgba(74,108,247,.12);border:1px solid rgba(74,108,247,.28);border-radius:6px;padding:2px 8px;font-size:.6rem;font-weight:700;color:#4a6cf7;text-decoration:none;cursor:pointer;transition:all .15s;"
+            onmouseover="this.style.background='rgba(74,108,247,.22)'" onmouseout="this.style.background='rgba(74,108,247,.12)'"
+            onclick="event.stopPropagation()">${linkDomain}</a>
+           <button onclick="event.stopPropagation();missoesSetLink('${m.id}')"
+            style="background:none;border:none;cursor:pointer;font-size:.55rem;color:#374151;margin-left:3px;padding:2px 3px;border-radius:4px;transition:color .15s;"
+            title="Trocar link" onmouseover="this.style.color='#6b80a8'" onmouseout="this.style.color='#374151'">✏</button>`
+        : `<button onclick="event.stopPropagation();missoesSetLink('${m.id}')"
+            style="display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);border-radius:6px;padding:2px 8px;font-size:.58rem;font-weight:600;color:#374151;cursor:pointer;transition:all .15s;"
+            onmouseover="this.style.color='#6b80a8';this.style.borderColor='rgba(255,255,255,.25)'"
+            onmouseout="this.style.color='#374151';this.style.borderColor='rgba(255,255,255,.12)'">+ Caderno TEC</button>`
+      }
+    </div>
 
-    <!-- Duration editable -->
-    <div class="missoes-card-meta" style="margin-bottom:.55rem;">
-      <span style="display:flex;align-items:center;gap:3px;">
+    <!-- Duration + Meta de questões -->
+    <div class="missoes-card-meta" style="margin-bottom:.55rem;display:flex;flex-wrap:wrap;gap:.45rem;align-items:center;">
+      <span style="display:flex;align-items:center;gap:3px;" title="Duração estimada">
         ⏱
         <span contenteditable="true" spellcheck="false"
           onclick="event.stopPropagation()"
           onblur="missoesUpdateDuration('${m.id}',this.textContent)"
           style="font-family:var(--mono);font-weight:700;outline:none;min-width:20px;cursor:text;border-bottom:1px dashed rgba(255,255,255,.15);padding:0 2px;"
-        >${m.durationMins}</span> min
+        >${m.durationMins}</span><span style="color:var(--muted3);">min</span>
       </span>
-      <select class="missoes-card-type" style="background:var(--surf3);border:1px solid var(--border);color:var(--text);cursor:pointer;font-family:var(--ff);font-size:.58rem;outline:none;"
+      <span style="display:flex;align-items:center;gap:3px;color:#f0b429;" title="Meta de questões (clique para editar)">
+        🎯
+        <span contenteditable="true" spellcheck="false"
+          onclick="event.stopPropagation()"
+          onblur="missoesUpdateMeta('${m.id}',this.textContent)"
+          style="font-family:var(--mono);font-weight:800;color:#f0b429;outline:none;min-width:16px;cursor:text;border-bottom:1px dashed rgba(240,180,41,.35);padding:0 2px;"
+        >${metaQ}</span><span style="font-size:.55rem;color:var(--muted3);">q</span>
+      </span>
+      <select class="missoes-card-type" style="background:var(--surf3);border:1px solid var(--border);color:var(--text);cursor:pointer;font-family:var(--ff);font-size:.58rem;outline:none;margin-left:auto;"
         onclick="event.stopPropagation()"
         onchange="missoesUpdateTipo('${m.id}',this.value)">
         ${Object.entries(TIPO_LABELS).map(([k,v])=>`<option value="${k}" ${m.tipo===k?'selected':''}>${v}</option>`).join('')}
@@ -13321,20 +13404,17 @@ function missoesCardHTML(m) {
     </div>
 
     <!-- Action buttons -->
-    <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:.3rem;align-items:center;" onclick="event.stopPropagation()">
-      <!-- Coliseu-style timer button -->
+    <div style="display:flex;gap:.3rem;align-items:center;" onclick="event.stopPropagation()">
       <button onclick="missoesStartColiseu('${m.id}')"
-        style="background:var(--gold);color:#000;border:none;border-radius:7px;padding:.32rem .65rem;cursor:pointer;font-size:.65rem;font-weight:800;font-family:var(--ff);display:flex;align-items:center;gap:3px;white-space:nowrap;">
+        style="background:var(--gold);color:#000;border:none;border-radius:7px;padding:.32rem .7rem;cursor:pointer;font-size:.65rem;font-weight:800;font-family:var(--ff);display:flex;align-items:center;gap:3px;white-space:nowrap;flex-shrink:0;">
         ▶ Iniciar
       </button>
-      ${m.link
-        ? `<button onclick="missoesOpenLink('${m.id}')" class="btn btn-ghost" style="font-size:.58rem;padding:.2rem .5rem;">🔗</button>`
-        : `<button onclick="missoesSetLink('${m.id}')" class="btn btn-ghost" style="font-size:.58rem;padding:.2rem .5rem;">+Link</button>`
-      }
-      <button onclick="missoesEditCard('${m.id}')" class="btn btn-ghost" style="font-size:.58rem;padding:.2rem .4rem;">✏️</button>
+      <div style="flex:1;"></div>
+      <button onclick="missoesEditCard('${m.id}')" class="btn btn-ghost" style="font-size:.58rem;padding:.2rem .4rem;" title="Editar">✏️</button>
       <button onclick="missoesToggleDone('${m.id}')"
         class="btn ${isDone?'btn-ghost':'btn-green'}"
-        style="font-size:.58rem;padding:.2rem .5rem;${isDone?'color:var(--muted2)':'color:#000'};">
+        style="font-size:.58rem;padding:.2rem .5rem;${isDone?'color:var(--muted2)':'color:#000'};"
+        title="${isDone?'Reabrir missão':'Marcar como concluída'}">
         ${isDone ? '↩' : '✓'}
       </button>
     </div>
@@ -13408,6 +13488,7 @@ function missaoNovaConfirm() {
   const link    = (document.getElementById('mn-link')?.value || '').trim();
   const tipo    = document.getElementById('mn-tipo')?.value || 'questoes';
   const mins    = parseInt(document.getElementById('mn-mins')?.value) || 60;
+  const metaQ   = parseInt(document.getElementById('mn-meta')?.value) || 0;
   let   dia     = document.getElementById('mn-dia')?.value || '';
 
   if (!discId) { flash('Selecione uma disciplina!', '#f0b429'); return; }
@@ -13423,6 +13504,7 @@ function missaoNovaConfirm() {
   const newMission = {
     id: uid(), dayIdx, discId, discName: disc.name||'', discColor: disc.color||'#5a6a8a',
     title: assunto, subtitulo: '', tipo, durationMins: mins,
+    metaQuestoes: metaQ,
     link: link || '', eixo: '', status: 'pending',
     date: dia, completedAt: null, manual: true
   };
@@ -13431,6 +13513,204 @@ function missaoNovaConfirm() {
   missaoNovaClose();
   missoesRender();
   flash('✅ Missão adicionada!', '#10b981');
+}
+
+// ═══════════════════════════════════════════════
+// PLANO SEFAZ CE 2026
+// ═══════════════════════════════════════════════
+const SEFAZ_PLANO = [
+  { sem:1, label:'Sem 1 — Direito Tributário I', datas:['2026-05-05','2026-05-06','2026-05-07','2026-05-08','2026-05-09'],
+    missions:[
+      { disc:'Direito Tributário', assunto:'CTN: Obrigação Tributária e Fato Gerador', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'Direito Tributário', assunto:'CTN: Sujeito Ativo, Passivo e Responsabilidade', tipo:'questoes', mins:90, meta:50, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'RL / Mat. Financeira', assunto:'Raciocínio Lógico – Proposições e Tabela Verdade', tipo:'questoes', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=11', prioridade:'🟢 SUPORTE' },
+    ]
+  },
+  { sem:2, label:'Sem 2 — Direito Tributário II', datas:['2026-05-12','2026-05-13','2026-05-14','2026-05-15','2026-05-16'],
+    missions:[
+      { disc:'Direito Tributário', assunto:'CTN: Lançamento, Modalidades e Revisão', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'Direito Tributário', assunto:'CTN: Extinção, Suspensão e Exclusão do Crédito', tipo:'questoes', mins:120, meta:65, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'Direito Tributário', assunto:'CTN: Prescrição, Decadência, Garantias e Privilégios', tipo:'questoes', mins:90, meta:50, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'Língua Portuguesa', assunto:'Interpretação de Texto e Coesão', tipo:'questoes', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=1', prioridade:'🟢 SUPORTE' },
+    ]
+  },
+  { sem:3, label:'Sem 3 — Contabilidade Avançada I', datas:['2026-05-19','2026-05-20','2026-05-21','2026-05-22','2026-05-23'],
+    missions:[
+      { disc:'Contabilidade Avançada', assunto:'Balanço Patrimonial: Ativo, Passivo e PL', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=4', prioridade:'🔴 CRÍTICO' },
+      { disc:'Contabilidade Avançada', assunto:'DRE, DLPA e Demonstrações Contábeis', tipo:'questoes', mins:120, meta:65, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=4', prioridade:'🔴 CRÍTICO' },
+      { disc:'Contabilidade Geral', assunto:'Plano de Contas e Lançamentos', tipo:'questoes', mins:60, meta:35, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=3', prioridade:'🟡 IMPORTANTE' },
+    ]
+  },
+  { sem:4, label:'Sem 4 — Contabilidade de Custos', datas:['2026-05-26','2026-05-27','2026-05-28','2026-05-29','2026-05-30'],
+    missions:[
+      { disc:'Contabilidade de Custos', assunto:'Custeio por Absorção vs Custeio Variável', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=5', prioridade:'🔴 CRÍTICO' },
+      { disc:'Contabilidade de Custos', assunto:'Ponto de Equilíbrio e CVL', tipo:'questoes', mins:120, meta:65, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=5', prioridade:'🔴 CRÍTICO' },
+      { disc:'AFO / Finanças Públicas', assunto:'Receita Pública: Conceito, Etapas e Classificação', tipo:'questoes', mins:60, meta:35, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=6', prioridade:'🟡 IMPORTANTE' },
+    ]
+  },
+  { sem:5, label:'Sem 5 — Legislação Tributária CE I', datas:['2026-06-02','2026-06-03','2026-06-04','2026-06-05','2026-06-06'],
+    missions:[
+      { disc:'Legislação Tributária CE', assunto:'ICMS-CE: Fato Gerador, Base de Cálculo e Alíquotas', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Legislação Tributária CE', assunto:'ICMS-CE: Sujeito Passivo e Contribuinte', tipo:'questoes', mins:120, meta:65, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Direito Constitucional', assunto:'Princípios Tributários na CF/88', tipo:'questoes', mins:60, meta:35, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=7', prioridade:'🟡 IMPORTANTE' },
+    ]
+  },
+  { sem:6, label:'Sem 6 — Legislação Tributária CE II', datas:['2026-06-09','2026-06-10','2026-06-11','2026-06-12','2026-06-13'],
+    missions:[
+      { disc:'Legislação Tributária CE', assunto:'ICMS-CE: Substituição Tributária', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Legislação Tributária CE', assunto:'Obrigações Acessórias e SPED', tipo:'questoes', mins:120, meta:65, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Direito Administrativo', assunto:'Atos Administrativos e Poderes', tipo:'questoes', mins:60, meta:35, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=8', prioridade:'🟡 IMPORTANTE' },
+    ]
+  },
+  { sem:7, label:'Sem 7 — Fluência de Dados + Economia', datas:['2026-06-16','2026-06-17','2026-06-18','2026-06-19','2026-06-20'],
+    missions:[
+      { disc:'Fluência de Dados', assunto:'Análise e Tratamento de Dados – Power BI e Planilhas', tipo:'questoes', mins:150, meta:80, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🟡 IMPORTANTE' },
+      { disc:'Fluência de Dados', assunto:'Visualização e Interpretação de Dados', tipo:'questoes', mins:90, meta:50, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🟡 IMPORTANTE' },
+      { disc:'Economia', assunto:'Microeconomia: Oferta, Demanda e Elasticidade', tipo:'questoes', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=9', prioridade:'🟢 SUPORTE' },
+    ]
+  },
+  { sem:8, label:'Sem 8 — Finanças Públicas + Gerais', datas:['2026-06-23','2026-06-24','2026-06-25','2026-06-26','2026-06-27'],
+    missions:[
+      { disc:'AFO / Finanças Públicas', assunto:'Despesa Pública, Dívida Pública e LRF', tipo:'questoes', mins:120, meta:65, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=6', prioridade:'🟡 IMPORTANTE' },
+      { disc:'Direito Financeiro', assunto:'Lei 4.320/64 e Orçamento Público', tipo:'questoes', mins:90, meta:50, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=10', prioridade:'🟡 IMPORTANTE' },
+      { disc:'Auditoria', assunto:'Auditoria Governamental e Controle Interno', tipo:'questoes', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=12', prioridade:'🟢 SUPORTE' },
+      { disc:'Admin. e Governança', assunto:'Governança Pública e Gestão por Resultados', tipo:'questoes', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=13', prioridade:'🟢 SUPORTE' },
+    ]
+  },
+  { sem:9, label:'Sem 9 — Revisão Geral de Erros', datas:['2026-06-30','2026-07-01','2026-07-02','2026-07-03','2026-07-04'],
+    missions:[
+      { disc:'Direito Tributário', assunto:'REVISÃO: Erradas – Lançamento e Extinção', tipo:'revisao', mins:120, meta:60, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'Legislação Tributária CE', assunto:'REVISÃO: Erradas – ICMS-CE Completo', tipo:'revisao', mins:120, meta:60, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Contabilidade de Custos', assunto:'REVISÃO: Erradas – Custeio e CVL', tipo:'revisao', mins:120, meta:60, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=5', prioridade:'🔴 CRÍTICO' },
+    ]
+  },
+  { sem:10, label:'Sem 10 — Simulados Completos', datas:['2026-07-07','2026-07-08','2026-07-09','2026-07-10','2026-07-11'],
+    missions:[
+      { disc:'Simulado Geral', assunto:'Simulado Conhecimentos Gerais – 80 questões FCC', tipo:'questoes', mins:180, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar', prioridade:'🔴 CRÍTICO' },
+      { disc:'Simulado Geral', assunto:'Simulado Conhecimentos Específicos – 80 questões FCC', tipo:'questoes', mins:180, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar', prioridade:'🔴 CRÍTICO' },
+      { disc:'Direito Tributário', assunto:'Revisão pós-simulado: pontos frágeis', tipo:'revisao', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+    ]
+  },
+  { sem:11, label:'Sem 11 — Simulado + Discursiva', datas:['2026-07-14','2026-07-15','2026-07-16','2026-07-17','2026-07-18'],
+    missions:[
+      { disc:'Simulado Geral', assunto:'Simulado Misto – 80 questões cronometradas', tipo:'questoes', mins:180, meta:80, link:'https://www.tecconcursos.com.br/questoes/filtrar', prioridade:'🔴 CRÍTICO' },
+      { disc:'Legislação Tributária CE', assunto:'Prática Discursiva: Estudo de Caso ICMS-CE', tipo:'misto', mins:90, meta:0, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Legislação Tributária CE', assunto:'Revisão ICMS-CE pré-prova', tipo:'revisao', mins:60, meta:30, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+    ]
+  },
+  { sem:12, label:'Sem 12 — Revisão Final', datas:['2026-07-21','2026-07-22','2026-07-23','2026-07-24','2026-07-25'],
+    missions:[
+      { disc:'Direito Tributário', assunto:'Flash Cards – CTN pontos críticos', tipo:'revisao', mins:60, meta:30, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=2', prioridade:'🔴 CRÍTICO' },
+      { disc:'Legislação Tributária CE', assunto:'Flash Cards – ICMS-CE pontos críticos', tipo:'revisao', mins:60, meta:30, link:'https://www.tecconcursos.com.br/guias/sefaz-ce-2026/auditor-fiscal-da-fazenda-estadual-sefaz-ce/gestao-fazendaria/-', prioridade:'🔴 CRÍTICO' },
+      { disc:'Contabilidade de Custos', assunto:'Flash Cards – Custos pontos críticos', tipo:'revisao', mins:60, meta:20, link:'https://www.tecconcursos.com.br/questoes/filtrar?materia=5', prioridade:'🔴 CRÍTICO' },
+    ]
+  },
+];
+
+let _planoSefazSemSel = null;
+
+function missoesPlanoOpen() {
+  _planoSefazSemSel = null;
+  const list = document.getElementById('plano-semanas-list');
+  if (!list) return;
+  const today = new Date();
+  list.innerHTML = SEFAZ_PLANO.map((sem, idx) => {
+    // Detect current week
+    const semStart = new Date(sem.datas[0]+'T12:00:00');
+    const semEnd   = new Date(sem.datas[sem.datas.length-1]+'T12:00:00');
+    const isCurrent = today >= semStart && today <= semEnd;
+    const isPast    = today > semEnd;
+    const isFuture  = today < semStart;
+    const statusColor = isCurrent ? '#4a6cf7' : isPast ? '#34d399' : '#374151';
+    const statusLabel = isCurrent ? '📍 Semana atual' : isPast ? '✓ Passada' : '';
+    // Count missions and total meta
+    const totalMeta = sem.missions.reduce((a,m)=>a+(m.meta||0),0);
+    const totalMins = sem.missions.reduce((a,m)=>a+(m.mins||0),0);
+
+    return `<div onclick="missoesPlanoSelect(${idx},this)"
+      style="background:${isCurrent?'rgba(74,108,247,.1)':isPast?'rgba(52,211,153,.05)':'rgba(255,255,255,.02)'};
+        border:1px solid ${isCurrent?'rgba(74,108,247,.3)':isPast?'rgba(52,211,153,.15)':'rgba(255,255,255,.07)'};
+        border-radius:10px;padding:.65rem .75rem;cursor:pointer;transition:all .15s;user-select:none;"
+      onmouseover="this.style.borderColor='rgba(74,108,247,.4)';this.style.background='rgba(74,108,247,.08)'"
+      onmouseout="this.style.borderColor='${isCurrent?'rgba(74,108,247,.3)':isPast?'rgba(52,211,153,.15)':'rgba(255,255,255,.07)'}';this.style.background='${isCurrent?'rgba(74,108,247,.1)':isPast?'rgba(52,211,153,.05)':'rgba(255,255,255,.02)'}'"
+      id="plano-sem-row-${idx}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:.62rem;font-weight:800;color:${statusColor};min-width:14px;">${sem.sem}</span>
+          <span style="font-size:.7rem;font-weight:700;color:#e2e8f0;">${sem.label}</span>
+          ${statusLabel ? `<span style="font-size:.52rem;font-weight:700;color:${statusColor};background:${statusColor}18;border:1px solid ${statusColor}33;border-radius:4px;padding:1px 5px;">${statusLabel}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:.4rem;flex-shrink:0;font-size:.58rem;color:#6b80a8;">
+          <span>🎯 ${totalMeta}q</span>
+          <span>⏱ ${Math.round(totalMins/60*10)/10}h</span>
+        </div>
+      </div>
+      <div style="font-size:.58rem;color:#6b80a8;margin-top:4px;">
+        ${sem.missions.map(m=>`<span style="margin-right:6px;">${m.prioridade.split(' ')[0]} ${m.assunto.length>35?m.assunto.slice(0,35)+'…':m.assunto}</span>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  const modal = document.getElementById('plano-sefaz-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function missoesPlanoSelect(idx, el) {
+  _planoSefazSemSel = idx;
+  document.querySelectorAll('[id^="plano-sem-row-"]').forEach(r => r.style.outline = 'none');
+  el.style.outline = '2px solid #4a6cf7';
+  const sem = SEFAZ_PLANO[idx];
+  const btn = document.getElementById('plano-load-btn');
+  if (btn) btn.textContent = `⚡ Carregar ${sem.label}`;
+}
+
+function missoesPlanoClose() {
+  const modal = document.getElementById('plano-sefaz-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function missoesPlanoLoad() {
+  if (_planoSefazSemSel === null) { flash('Selecione uma semana primeiro!', '#f0b429'); return; }
+  missoesEnsure();
+  const sem = SEFAZ_PLANO[_planoSefazSemSel];
+  const missions = state.missoesCiclo.missions;
+  // Distribute missions across the days
+  const datas = sem.datas;
+  let added = 0;
+  sem.missions.forEach((tmpl, i) => {
+    const date = datas[i % datas.length];
+    const dayIdx = missions.length > 0 ? Math.max(...missions.map(m=>m.dayIdx||0)) + (i===0?1:0) : i;
+    // Try to match a discipline by name fragment
+    const disc = state.disciplines.find(d => {
+      const dn = d.name.toLowerCase();
+      const tn = tmpl.disc.toLowerCase();
+      return dn.includes(tn.split(' ')[0]) || tn.includes(dn.split(' ')[0]);
+    }) || {};
+    const newM = {
+      id: uid(),
+      dayIdx,
+      discId: disc.id || '',
+      discName: disc.name || tmpl.disc,
+      discColor: disc.color || '#4a6cf7',
+      title: tmpl.assunto,
+      subtitulo: tmpl.prioridade || '',
+      tipo: tmpl.tipo,
+      durationMins: tmpl.mins,
+      metaQuestoes: tmpl.meta,
+      link: tmpl.link || '',
+      eixo: '',
+      status: 'pending',
+      date,
+      completedAt: null,
+      manual: true,
+      planoSefaz: true
+    };
+    missions.push(newM);
+    added++;
+  });
+  saveState();
+  missoesPlanoClose();
+  missoesRender();
+  flash(`✅ ${added} missões da ${sem.label} adicionadas!`, '#4a6cf7', 5000);
 }
 
 function missDragStart(e, id) {
