@@ -16881,6 +16881,26 @@ window.addEventListener('message', function(e){
         flash('📋 Fila: ' + label.substring(0, 50) + (label.length > 50 ? '…' : ''), '#8b5cf6', 4000);
       }
     }
+
+    // Correção tardia: histórico do TEC carregou após o wrong inicial
+    if(r === 'wrong_update' && e.data.url){
+      var qId2  = e.data.qid || (e.data.url||'').replace(/.*\//,'');
+      var upErr = parseInt(e.data.myErrors) || 0;
+      if(qId2 && upErr > 0 && state.wrongHistory && state.wrongHistory[qId2]){
+        var whu = state.wrongHistory[qId2];
+        if(upErr > whu.erros){
+          whu.erros    = upErr;
+          whu.myErrors = Math.max(whu.myErrors||0, upErr);
+          var filaU = (state.filaRevisao||[]).find(function(q){ return q.link===(whu.url||'') || q.qid===qId2; });
+          if(filaU){ filaU.erros=whu.erros; filaU.reincidente=whu.erros>1; if(whu.erros>1)filaU.prioridade='alta'; }
+          saveState();
+          wrongHistoryRender();
+          wrongHistoryUpdateBadge();
+          try{ frRender(); }catch(x){}
+        }
+      }
+    }
+
     return;
   }
 
@@ -17100,7 +17120,7 @@ window.addEventListener('message', function(e){
         'var da=s.a-A,de=s.e-E;' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
         // Erro: captura qid/url AGORA (antes da página mudar), depois relê
-        // myErrors do modal "Meu Desempenho" que aparece ~500ms depois
+        // myErrors do modal "Meu Desempenho" que pode demorar >500ms para carregar
         'if(de>0){' +
           'var _de=de;E=s.e;' +
           'var _qi0=getInfo();' + // snapshot: qid/url corretos neste instante
@@ -17113,6 +17133,15 @@ window.addEventListener('message', function(e){
               'qi.desc=_qi0.desc||qi.desc;qi.materia=_qi0.materia||qi.materia;qi.assunto=_qi0.assunto||qi.assunto;' +
             '}' +
             'for(var i=0;i<_de;i++)send("wrong",qi);' +
+            // se myErrors=0 o histórico ainda não carregou — agenda correção em 2,5s
+            'if(!qi.myErrors){' +
+              'var _u=qi.url,_q=qi.qid;' +
+              'setTimeout(function(){' +
+                'var q2=getInfo();' +
+                'q2.url=_u;q2.qid=_q;' +
+                'if(q2.myErrors>0)send("wrong_update",q2);' +
+              '},2500);' +
+            '}' +
           '},500);' +
         '}' +
       '}' +
