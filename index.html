@@ -287,6 +287,105 @@ body::after{
 [data-theme="light"] .theme-toggle .tt-icon{transform:rotate(180deg);}
 
 /* ── PAGES ────────────────────────────────────── */
+
+/* ── CONSISTÊNCIA ─────────────────────────────── */
+.cons-kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.85rem;margin-bottom:1.5rem;}
+@media(max-width:1100px){.cons-kpi-grid{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:700px){.cons-kpi-grid{grid-template-columns:repeat(2,1fr);}}
+
+.cons-kpi{
+  background:var(--surf);border:1px solid var(--border);border-radius:var(--r3);
+  padding:1.1rem 1.2rem;position:relative;overflow:hidden;
+  transition:border-color .3s,transform .3s,box-shadow .3s;
+}
+.cons-kpi:hover{transform:translateY(-2px);border-color:var(--border3);box-shadow:0 8px 24px rgba(0,0,0,.25);}
+.cons-kpi-icon{font-size:1.4rem;margin-bottom:.4rem;display:block;}
+.cons-kpi-val{font-family:var(--mono);font-size:1.9rem;font-weight:500;line-height:1;margin-bottom:.25rem;letter-spacing:-.03em;}
+.cons-kpi-lbl{font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted2);font-weight:700;}
+.cons-kpi-sub{font-size:.62rem;color:var(--muted3);margin-top:.2rem;}
+.cons-kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ck-accent,var(--green)),transparent);opacity:.7;}
+.cons-kpi.ck-fire{--ck-accent:#f97316;}
+.cons-kpi.ck-gold{--ck-accent:var(--gold);}
+.cons-kpi.ck-cyan{--ck-accent:var(--cyan);}
+.cons-kpi.ck-green{--ck-accent:var(--green);}
+.cons-kpi.ck-purple{--ck-accent:var(--purple);}
+
+/* Heatmap */
+.hmap-wrap{overflow-x:auto;padding-bottom:.5rem;}
+.hmap-grid{display:inline-grid;grid-template-rows:repeat(7,13px);grid-auto-flow:column;gap:3px;grid-auto-columns:13px;min-width:max-content;}
+.hmap-cell{
+  width:13px;height:13px;border-radius:3px;cursor:pointer;
+  transition:transform .12s,box-shadow .12s;
+  position:relative;
+}
+.hmap-cell:hover{transform:scale(1.4);z-index:10;box-shadow:0 0 8px rgba(255,255,255,.2);}
+.hmap-cell[data-l="0"]{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.04);}
+.hmap-cell[data-l="1"]{background:#1d4c3a;}
+.hmap-cell[data-l="2"]{background:#166534;}
+.hmap-cell[data-l="3"]{background:#15803d;}
+.hmap-cell[data-l="4"]{background:#22c55e;}
+.hmap-cell[data-l="5"]{background:#f0a500;box-shadow:0 0 8px rgba(240,165,0,.4);}
+[data-theme="light"] .hmap-cell[data-l="0"]{background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.06);}
+
+.hmap-months{display:flex;padding-left:28px;margin-bottom:4px;min-width:max-content;}
+.hmap-month-lbl{font-size:.55rem;color:var(--muted2);font-family:var(--mono);letter-spacing:.05em;white-space:nowrap;}
+
+.hmap-days{display:grid;grid-template-rows:repeat(7,13px);gap:3px;margin-right:6px;flex-shrink:0;}
+.hmap-day-lbl{font-size:.55rem;color:var(--muted2);font-family:var(--mono);height:13px;display:flex;align-items:center;}
+
+/* Tooltip */
+.hmap-tooltip{
+  position:fixed;z-index:9999;pointer-events:none;
+  background:#0a0d14;border:1px solid var(--border2);border-radius:8px;
+  padding:.55rem .85rem;font-size:.7rem;color:var(--text);
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  opacity:0;transition:opacity .15s;white-space:nowrap;
+}
+.hmap-tooltip.show{opacity:1;}
+.hmap-tooltip-date{font-weight:700;margin-bottom:.2rem;color:var(--gold);}
+.hmap-tooltip-row{display:flex;gap:.6rem;color:var(--muted3);font-size:.65rem;}
+
+/* Legend */
+.hmap-legend{display:flex;align-items:center;gap:.5rem;margin-top:.65rem;justify-content:flex-end;flex-wrap:wrap;}
+.hmap-legend-lbl{font-size:.58rem;color:var(--muted3);}
+.hmap-legend-dots{display:flex;gap:3px;}
+.hmap-legend-dot{width:13px;height:13px;border-radius:3px;}
+
+/* Month bars */
+.mbar-row{display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:.5rem;}
+.mbar{
+  flex:1;border-radius:4px 4px 0 0;min-height:2px;cursor:pointer;
+  background:linear-gradient(180deg,var(--green),rgba(52,211,153,.3));
+  transition:opacity .2s,filter .2s;position:relative;
+}
+.mbar:hover{filter:brightness(1.2);}
+.mbar-labels{display:flex;gap:6px;}
+.mbar-lbl{flex:1;text-align:center;font-size:.5rem;color:var(--muted2);font-family:var(--mono);letter-spacing:.05em;}
+
+/* Weekday heatmap */
+.wday-row{display:flex;align-items:center;gap:.65rem;margin-bottom:.5rem;}
+.wday-lbl{font-size:.62rem;color:var(--muted2);font-family:var(--mono);width:28px;text-align:right;flex-shrink:0;}
+.wday-bar-bg{flex:1;height:10px;background:rgba(255,255,255,.04);border-radius:5px;overflow:hidden;position:relative;}
+.wday-bar-fill{height:100%;border-radius:5px;transition:width .8s cubic-bezier(.4,0,.2,1);}
+.wday-val{font-size:.6rem;font-family:var(--mono);color:var(--muted3);min-width:38px;text-align:right;}
+
+/* Streak milestones */
+.streak-milestone{display:flex;align-items:center;gap:.75rem;padding:.6rem .85rem;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:.4rem;transition:border-color .15s;}
+.streak-milestone:hover{border-color:var(--border2);}
+.streak-milestone-icon{font-size:1.2rem;flex-shrink:0;}
+.streak-milestone-name{font-size:.78rem;font-weight:700;}
+.streak-milestone-sub{font-size:.6rem;color:var(--muted2);}
+.streak-milestone-val{font-family:var(--mono);font-size:.88rem;font-weight:700;margin-left:auto;flex-shrink:0;}
+.streak-milestone.unlocked{border-color:rgba(240,165,0,.3);background:rgba(240,165,0,.04);}
+.streak-milestone.locked{opacity:.5;}
+
+/* Time-of-day chart */
+.tod-grid{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:40px;}
+.tod-bar{border-radius:2px;min-height:2px;transition:filter .2s;}
+.tod-bar:hover{filter:brightness(1.3);}
+.tod-hours{display:flex;gap:0;margin-top:3px;}
+.tod-hour-lbl{flex:1;text-align:center;font-size:.45rem;color:var(--muted2);font-family:var(--mono);}
+
 .page{display:none;padding:1.5rem 2rem 2.5rem;animation:fadeIn .25s ease;}
 .page.active{display:block;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
@@ -1606,8 +1705,10 @@ select.inp{appearance:none;cursor:pointer;}
     <div class="nav-sec">Desempenho</div>
     <div class="nav-item" onclick="goPage('sessao',this)"><span class="nav-icon">🎯</span>Sessão de Questões</div>
     <div class="nav-item" onclick="goPage('filarev',this)"><span class="nav-icon">⏱</span>Fila de Revisão <span id="filarev-nav-badge" style="display:none;background:var(--red);color:#fff;font-size:.5rem;font-weight:800;padding:1px 6px;border-radius:10px;margin-left:auto;font-family:var(--mono);"></span></div>
+    <div class="nav-item" onclick="goPage('problemáticas',this)"><span class="nav-icon">⚠️</span>Q. Problemáticas <span id="wh-nav-badge" style="display:none;background:#ef4444;color:#fff;font-size:.5rem;font-weight:800;padding:1px 6px;border-radius:10px;margin-left:auto;font-family:var(--mono);"></span></div>
     <div class="nav-item" onclick="goPage('questoes',this)"><span class="nav-icon">✎</span>Questões</div>
     <div class="nav-item" onclick="goPage('arena',this)"><span class="nav-icon">⚔</span>Arena <span id="arena-nav-badge" style="display:none;background:#4a6cf7;color:#fff;font-size:.5rem;font-weight:800;padding:1px 6px;border-radius:10px;margin-left:auto;font-family:var(--mono);"></span></div>
+    <div class="nav-item" onclick="goPage('consistencia',this)"><span class="nav-icon">🔥</span>Consistência</div>
     <div class="nav-item" onclick="goPage('estatisticas',this)"><span class="nav-icon">◧</span>Estatísticas</div>
     <div class="nav-item" onclick="goPage('progresso',this)"><span class="nav-icon">◎</span>Progresso</div>
     <div class="nav-item" onclick="goPage('registros',this)"><span class="nav-icon">≡</span>Registros</div>
@@ -1693,6 +1794,172 @@ select.inp{appearance:none;cursor:pointer;}
       <span class="tt-icon">🌙</span>
       <span id="theme-label">Claro</span>
     </div>
+  </div>
+</div>
+
+  </div>
+</div>
+
+<!-- PAGE: CONSISTÊNCIA -->
+<div id="page-consistencia" class="page">
+
+  <!-- KPIs -->
+  <div class="cons-kpi-grid" id="cons-kpis">
+    <div class="cons-kpi ck-fire">
+      <span class="cons-kpi-icon">🔥</span>
+      <div class="cons-kpi-val" id="cons-k-streak" style="color:#f97316;">0</div>
+      <div class="cons-kpi-lbl">Sequência Atual</div>
+      <div class="cons-kpi-sub" id="cons-k-streak-sub">dias consecutivos</div>
+    </div>
+    <div class="cons-kpi ck-gold">
+      <span class="cons-kpi-icon">🏆</span>
+      <div class="cons-kpi-val" id="cons-k-best" style="color:var(--gold);">0</div>
+      <div class="cons-kpi-lbl">Melhor Sequência</div>
+      <div class="cons-kpi-sub" id="cons-k-best-sub">recorde pessoal</div>
+    </div>
+    <div class="cons-kpi ck-cyan">
+      <span class="cons-kpi-icon">📅</span>
+      <div class="cons-kpi-val" id="cons-k-days" style="color:var(--cyan);">0</div>
+      <div class="cons-kpi-lbl">Dias Estudados</div>
+      <div class="cons-kpi-sub" id="cons-k-days-sub">no total</div>
+    </div>
+    <div class="cons-kpi ck-green">
+      <span class="cons-kpi-icon">💯</span>
+      <div class="cons-kpi-val" id="cons-k-cons" style="color:var(--green);">0%</div>
+      <div class="cons-kpi-lbl">Consistência</div>
+      <div class="cons-kpi-sub">este mês</div>
+    </div>
+    <div class="cons-kpi ck-purple">
+      <span class="cons-kpi-icon">⏱</span>
+      <div class="cons-kpi-val" id="cons-k-avg" style="color:var(--purple);">—</div>
+      <div class="cons-kpi-lbl">Média / Dia</div>
+      <div class="cons-kpi-sub">dias com estudo</div>
+    </div>
+  </div>
+
+  <!-- Heatmap anual -->
+  <div class="card" style="margin-bottom:1.25rem;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);opacity:.6;"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+      <div>
+        <div class="slabel" style="margin:0;">📊 Mapa de Atividade</div>
+        <div style="font-size:.62rem;color:var(--muted2);margin-top:.2rem;" id="cons-hmap-subtitle">Carregando…</div>
+      </div>
+      <div style="display:flex;gap:.35rem;">
+        <button class="est-chip active" id="cons-yr-btn-0" onclick="consSetYear(0,this)">Este ano</button>
+        <button class="est-chip" id="cons-yr-btn-1" onclick="consSetYear(1,this)">Ano anterior</button>
+      </div>
+    </div>
+
+    <!-- Month labels + heatmap -->
+    <div class="hmap-wrap">
+      <div style="display:flex;align-items:flex-start;">
+        <!-- Day labels -->
+        <div style="padding-top:20px;">
+          <div class="hmap-days">
+            <div class="hmap-day-lbl"></div>
+            <div class="hmap-day-lbl">Seg</div>
+            <div class="hmap-day-lbl"></div>
+            <div class="hmap-day-lbl">Qua</div>
+            <div class="hmap-day-lbl"></div>
+            <div class="hmap-day-lbl">Sex</div>
+            <div class="hmap-day-lbl"></div>
+          </div>
+        </div>
+        <!-- Months + grid -->
+        <div style="flex:1;min-width:0;">
+          <div class="hmap-months" id="cons-months"></div>
+          <div class="hmap-grid" id="cons-hmap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="hmap-legend">
+      <span class="hmap-legend-lbl">Menos</span>
+      <div class="hmap-legend-dots">
+        <div class="hmap-legend-dot" data-l="0" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);"></div>
+        <div class="hmap-legend-dot" style="background:#1d4c3a;"></div>
+        <div class="hmap-legend-dot" style="background:#166534;"></div>
+        <div class="hmap-legend-dot" style="background:#15803d;"></div>
+        <div class="hmap-legend-dot" style="background:#22c55e;"></div>
+        <div class="hmap-legend-dot" style="background:#f0a500;"></div>
+      </div>
+      <span class="hmap-legend-lbl">Mais</span>
+      <span style="font-size:.55rem;color:var(--muted3);margin-left:.5rem;">🥇 = 3h+</span>
+    </div>
+  </div>
+
+  <!-- Grid: Monthly + Weekday -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+
+    <!-- Monthly bars -->
+    <div class="card">
+      <div class="slabel">📆 Horas por Mês</div>
+      <div style="position:relative;height:100px;margin-bottom:6px;">
+        <div class="mbar-row" id="cons-mbars" style="height:90px;align-items:flex-end;"></div>
+      </div>
+      <div class="mbar-labels" id="cons-mbar-labels"></div>
+    </div>
+
+    <!-- Weekday distribution -->
+    <div class="card">
+      <div class="slabel">📅 Por Dia da Semana</div>
+      <div id="cons-wdays" style="margin-top:.5rem;"></div>
+    </div>
+  </div>
+
+  <!-- Grid: Time of day + Milestones -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+
+    <!-- Time of day -->
+    <div class="card">
+      <div class="slabel">🕐 Horário de Estudo</div>
+      <div style="font-size:.62rem;color:var(--muted2);margin-bottom:.85rem;">Quando você mais estuda (últimos 90 dias)</div>
+      <div class="tod-grid" id="cons-tod"></div>
+      <div class="tod-hours" id="cons-tod-labels"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:.5rem;font-size:.6rem;color:var(--muted2);" id="cons-tod-peak"></div>
+    </div>
+
+    <!-- Milestones / badges -->
+    <div class="card">
+      <div class="slabel">🏅 Conquistas de Consistência</div>
+      <div id="cons-milestones" style="display:flex;flex-direction:column;gap:.35rem;"></div>
+    </div>
+  </div>
+
+  <!-- Best weeks / recent activity table -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;flex-wrap:wrap;gap:.5rem;">
+      <div class="slabel" style="margin:0;">📋 Histórico Semanal</div>
+      <div style="font-size:.62rem;color:var(--muted2);" id="cons-weeks-subtitle"></div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:.72rem;" id="cons-weeks-table">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border);">
+            <th style="text-align:left;padding:.45rem .6rem;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:700;font-family:var(--mono);">Semana</th>
+            <th style="text-align:center;padding:.45rem .6rem;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:700;font-family:var(--mono);">Dias</th>
+            <th style="text-align:center;padding:.45rem .6rem;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:700;font-family:var(--mono);">Tempo Total</th>
+            <th style="text-align:center;padding:.45rem .6rem;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:700;font-family:var(--mono);">Questões</th>
+            <th style="text-align:center;padding:.45rem .6rem;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:700;font-family:var(--mono);">Acerto</th>
+            <th style="text-align:center;padding:.45rem .6rem;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);font-weight:700;font-family:var(--mono);">Score</th>
+          </tr>
+        </thead>
+        <tbody id="cons-weeks-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tooltip flutuante heatmap -->
+<div class="hmap-tooltip" id="hmap-tooltip">
+  <div class="hmap-tooltip-date" id="hmap-tt-date">—</div>
+  <div class="hmap-tooltip-row">
+    <span id="hmap-tt-time">—</span>
+    <span id="hmap-tt-qs">—</span>
   </div>
 </div>
 
@@ -2526,6 +2793,106 @@ select.inp{appearance:none;cursor:pointer;}
     <p style="font-size:.6rem;color:rgba(34,211,238,.4);margin-top:.65rem;font-family:var(--mono);">// CLIQUE → atribuir disciplina &nbsp;·&nbsp; ⇧+CLIQUE → marcar concluído</p>
   </div>
 </div>
+</div>
+
+<!-- PAGE: QUESTÕES PROBLEMÁTICAS -->
+<div id="page-problemáticas" class="page">
+
+  <!-- Header stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.9rem;margin-bottom:1.5rem;" id="wh-kpis">
+    <div class="kpi" style="border-color:rgba(239,68,68,.25);">
+      <div style="height:2px;position:absolute;top:0;left:0;right:0;background:linear-gradient(90deg,transparent,#ef4444,transparent);border-radius:var(--r3) var(--r3) 0 0;"></div>
+      <span class="kpi-icon">💀</span>
+      <div class="kpi-val" id="wh-k-reinc" style="color:#ef4444;">0</div>
+      <div class="kpi-label">Reincidentes</div>
+      <div class="kpi-sub">erradas 2+ vezes</div>
+    </div>
+    <div class="kpi" style="border-color:rgba(249,115,22,.25);">
+      <div style="height:2px;position:absolute;top:0;left:0;right:0;background:linear-gradient(90deg,transparent,#f97316,transparent);border-radius:var(--r3) var(--r3) 0 0;"></div>
+      <span class="kpi-icon">⚠️</span>
+      <div class="kpi-val" id="wh-k-total" style="color:#f97316;">0</div>
+      <div class="kpi-label">Total Rastreadas</div>
+      <div class="kpi-sub">erros registrados</div>
+    </div>
+    <div class="kpi" style="border-color:rgba(245,158,11,.25);">
+      <div style="height:2px;position:absolute;top:0;left:0;right:0;background:linear-gradient(90deg,transparent,var(--gold),transparent);border-radius:var(--r3) var(--r3) 0 0;"></div>
+      <span class="kpi-icon">📋</span>
+      <div class="kpi-val" id="wh-k-fila" style="color:var(--gold);">0</div>
+      <div class="kpi-label">Na Fila</div>
+      <div class="kpi-sub">aguardando revisão</div>
+    </div>
+    <div class="kpi" style="border-color:rgba(52,211,153,.2);">
+      <div style="height:2px;position:absolute;top:0;left:0;right:0;background:linear-gradient(90deg,transparent,var(--green),transparent);border-radius:var(--r3) var(--r3) 0 0;"></div>
+      <span class="kpi-icon">✅</span>
+      <div class="kpi-val" id="wh-k-done" style="color:var(--green);">0</div>
+      <div class="kpi-label">Revisadas</div>
+      <div class="kpi-sub">já concluídas</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:320px 1fr;gap:1.25rem;align-items:start;">
+
+    <!-- LEFT: Filtros + info -->
+    <div>
+      <div class="card" style="margin-bottom:1rem;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#ef4444,transparent);"></div>
+        <div class="slabel">🎯 Como Funciona</div>
+        <div style="font-size:.68rem;color:var(--muted2);line-height:1.75;margin-bottom:1rem;">
+          <div>1. Resolva questões no TecConcursos com o Monitor ⚡ ativo</div>
+          <div>2. Cada erro é registrado automaticamente aqui com a data</div>
+          <div>3. Se você errar a mesma questão 2x → <strong style="color:#ef4444;">Reincidente!</strong></div>
+          <div>4. Questões reincidentes ficam destacadas e entram na fila com prioridade</div>
+          <div style="margin-top:.5rem;color:var(--purple);">📊 O TEC também mostra quantas vezes você resolveu cada questão — o Monitor captura esse dado</div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="frow">
+          <label class="flabel">Mostrar</label>
+          <select class="inp" id="wh-filter-sel" style="font-size:.8rem;" onchange="whFilterChange()">
+            <option value="all">Todas as questões erradas</option>
+            <option value="reinc">Somente reincidentes (2+)</option>
+            <option value="once">Erradas apenas 1 vez</option>
+          </select>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.5rem;">
+          <button class="btn btn-gold btn-full" style="font-size:.72rem;" onclick="whAddAllReincToFila()">
+            + Enviar todas reincidentes à fila
+          </button>
+          <button class="btn btn-ghost btn-full" style="font-size:.65rem;" onclick="whClearDone()">
+            🧹 Limpar questões já revisadas
+          </button>
+          <button class="btn btn-danger btn-full" style="font-size:.65rem;" onclick="whClearAll()">
+            🗑 Limpar todo o histórico
+          </button>
+        </div>
+      </div>
+
+      <!-- Top pior por matéria -->
+      <div class="card">
+        <div class="slabel">📊 Por Matéria</div>
+        <div id="wh-by-materia" style="display:flex;flex-direction:column;gap:.35rem;"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Lista de questões -->
+    <div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <div class="slabel" style="margin:0;">⚠️ Questões com Erros</div>
+            <span style="font-family:var(--mono);font-size:.65rem;font-weight:700;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3);padding:1px 7px;border-radius:10px;" id="wh-reinc-count">0</span>
+            <span style="font-size:.6rem;color:var(--muted2);">reincidentes</span>
+          </div>
+          <div style="display:flex;gap:.35rem;">
+            <button class="btn btn-ghost" style="font-size:.6rem;padding:.2rem .5rem;" onclick="wrongHistoryRender()">↺ Atualizar</button>
+          </div>
+        </div>
+        <div id="wh-list" style="display:flex;flex-direction:column;gap:.45rem;max-height:600px;overflow-y:auto;padding-right:2px;"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- PAGE: FILA DE REVISÃO POR LINK -->
@@ -4552,6 +4919,7 @@ const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:
   filaRevisao:[],
   tecCaderno:{url:'',cadernoBase:'',idPasta:''},
   tecCadernos:[],
+  wrongHistory:{},
   missoesCiclo:null,
   xp:0, level:1, achievements:[], focusStreak:0, lastFocusDate:null,
   // min per question by discipline id (editável)
@@ -4568,7 +4936,7 @@ function uid(){return Math.random().toString(36).slice(2,9);}
 function syncGoal(){const v=parseInt(document.getElementById('cfg-daily-goal').value)||4;document.getElementById('daily-goal').value=v;saveState();}
 
 // ═══ NAV ══════════════════════════════════════
-const PAGE_META={arena:{icon:'⚔',title:'Arena — Modo Foco'},dashboard:{icon:'◈',title:'Dashboard'},cronometro:{icon:'◷',title:'Cronômetro'},missoes:{icon:'⚡',title:'Painel de Missões Ativas'},sessao:{icon:'🎯',title:'Sessão de Questões'},filarev:{icon:'⏱',title:'Fila de Revisão por Link'},questoes:{icon:'✎',title:'Questões & Desempenho'},estatisticas:{icon:'◧',title:'Estatísticas'},progresso:{icon:'◎',title:'Progresso'},registros:{icon:'≡',title:'Histórico de Sessões'},revisoes:{icon:'🔁',title:'Revisão Espaçada'},resumos:{icon:'📖',title:'Resumos de Estudo'},metas:{icon:'◉',title:'Metas Semanais'},disciplinas:{icon:'⊞',title:'Disciplinas'},config:{icon:'⚙',title:'Configurações'},importar:{icon:'⬆',title:'Importar Edital'}};
+const PAGE_META={arena:{icon:'⚔',title:'Arena — Modo Foco'},consistencia:{icon:'🔥',title:'Consistência de Estudo'},'problemáticas':{icon:'⚠️',title:'Questões Problemáticas — Reincidências'},dashboard:{icon:'◈',title:'Dashboard'},cronometro:{icon:'◷',title:'Cronômetro'},missoes:{icon:'⚡',title:'Painel de Missões Ativas'},sessao:{icon:'🎯',title:'Sessão de Questões'},filarev:{icon:'⏱',title:'Fila de Revisão por Link'},questoes:{icon:'✎',title:'Questões & Desempenho'},estatisticas:{icon:'◧',title:'Estatísticas'},progresso:{icon:'◎',title:'Progresso'},registros:{icon:'≡',title:'Histórico de Sessões'},revisoes:{icon:'🔁',title:'Revisão Espaçada'},resumos:{icon:'📖',title:'Resumos de Estudo'},metas:{icon:'◉',title:'Metas Semanais'},disciplinas:{icon:'⊞',title:'Disciplinas'},config:{icon:'⚙',title:'Configurações'},importar:{icon:'⬆',title:'Importar Edital'}};
 
 
 // ═══ TIMER ════════════════════════════════════
@@ -7234,6 +7602,474 @@ function renderEstPaceList(days){
   }).join('');
 }
 
+// ═══════════════════════════════════════════════
+// CONSISTÊNCIA DE ESTUDO
+// ═══════════════════════════════════════════════
+
+let _consYear = 0; // 0 = this year, 1 = last year
+
+function consSetYear(offset, btn) {
+  _consYear = offset;
+  document.querySelectorAll('#cons-yr-btn-0,#cons-yr-btn-1').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  consInit();
+}
+
+function consInit() {
+  consRenderKpis();
+  consRenderHeatmap();
+  consRenderMonthly();
+  consRenderWeekdays();
+  consRenderTimeOfDay();
+  consRenderMilestones();
+  consRenderWeekTable();
+}
+
+// ── Helpers ───────────────────────────────────
+function consDateKey(d) {
+  return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
+}
+
+function consGetDayMap() {
+  // Returns {dateKey: {secs, qs, correct}}
+  const map = {};
+  (state.sessions||[]).forEach(s=>{
+    const k = s.date ? s.date.slice(0,10) : '';
+    if(!k) return;
+    if(!map[k]) map[k]={secs:0,qs:0,correct:0};
+    map[k].secs += s.seconds||0;
+  });
+  (state.questionSessions||[]).forEach(s=>{
+    const k = s.date ? s.date.slice(0,10) : '';
+    if(!k) return;
+    if(!map[k]) map[k]={secs:0,qs:0,correct:0};
+    map[k].qs += s.total||0;
+    map[k].correct += s.correct||0;
+  });
+  return map;
+}
+
+function consLevel(secs) {
+  if(!secs) return 0;
+  const m = secs/60;
+  if(m<30) return 1;
+  if(m<60) return 2;
+  if(m<120) return 3;
+  if(m<180) return 4;
+  return 5;
+}
+
+function consCalcStreak(dayMap) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  let cur=0, best=0, tmp=0, prev=null;
+  // Calculate best streak from all data
+  const keys = Object.keys(dayMap).sort();
+  keys.forEach(k=>{
+    const d = new Date(k+'T12:00:00');
+    if(prev){
+      const diff=(d-prev)/86400000;
+      if(diff===1) tmp++;
+      else tmp=1;
+    } else tmp=1;
+    if(tmp>best) best=tmp;
+    prev=d;
+  });
+  // Current streak (from today backwards)
+  let check = new Date(today);
+  for(let i=0;i<1000;i++){
+    const k=consDateKey(check);
+    if(dayMap[k]) { cur++; check.setDate(check.getDate()-1); }
+    else if(i===0){ check.setDate(check.getDate()-1); const k2=consDateKey(check); if(dayMap[k2]){cur++;check.setDate(check.getDate()-1);}else break; }
+    else break;
+  }
+  return {cur,best};
+}
+
+// ── KPIs ──────────────────────────────────────
+function consRenderKpis() {
+  const dayMap = consGetDayMap();
+  const {cur,best} = consCalcStreak(dayMap);
+
+  const totalDays = Object.keys(dayMap).length;
+
+  // This month consistency
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  let monthDays = 0;
+  for(let d=1;d<=now.getDate();d++){
+    const k=now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-'+d.toString().padStart(2,'0');
+    if(dayMap[k]) monthDays++;
+  }
+  const consPct = now.getDate()>0 ? Math.round(monthDays/now.getDate()*100) : 0;
+
+  // Average time on study days
+  const totalSecs = Object.values(dayMap).reduce((a,d)=>a+d.secs,0);
+  const avgSecs = totalDays>0 ? Math.round(totalSecs/totalDays) : 0;
+  const avgH = Math.floor(avgSecs/3600);
+  const avgM = Math.floor((avgSecs%3600)/60);
+  const avgStr = avgH>0 ? `${avgH}h${avgM.toString().padStart(2,'0')}m` : `${avgM}m`;
+
+  const set = (id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('cons-k-streak',cur);
+  set('cons-k-streak-sub',cur===1?'1 dia consecutivo':cur+' dias consecutivos');
+  set('cons-k-best',best);
+  set('cons-k-best-sub',`recorde: ${best} dias`);
+  set('cons-k-days',totalDays);
+  set('cons-k-days-sub',totalSecs>0?formatHM(totalSecs)+' total':'no total');
+  set('cons-k-cons',consPct+'%');
+  set('cons-k-avg',avgSecs>0?avgStr:'—');
+
+  // Streak fire color
+  const streakEl=document.getElementById('cons-k-streak');
+  if(streakEl){
+    if(cur>=30) streakEl.style.color='#f0a500';
+    else if(cur>=7) streakEl.style.color='#f97316';
+    else if(cur>=3) streakEl.style.color='#fb923c';
+    else streakEl.style.color='var(--muted2)';
+  }
+}
+
+// ── Heatmap ───────────────────────────────────
+function consRenderHeatmap() {
+  const grid = document.getElementById('cons-hmap');
+  const monthsEl = document.getElementById('cons-months');
+  const subEl = document.getElementById('cons-hmap-subtitle');
+  if(!grid) return;
+
+  const dayMap = consGetDayMap();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Year range
+  const year = today.getFullYear() - _consYear;
+  const startDate = new Date(year, 0, 1);
+  // Align to Monday of the week containing Jan 1
+  const startDow = startDate.getDay(); // 0=Sun
+  const startMon = new Date(startDate);
+  const adj = startDow===0 ? 1 : (startDow===1 ? 0 : -(startDow-1));
+  startMon.setDate(startMon.getDate() + (startDow===0 ? -6 : -(startDow-1)));
+
+  const endDate = new Date(year, 11, 31);
+
+  // Calculate total weeks
+  const totalDays = Math.ceil((endDate-startMon)/86400000)+1;
+  const totalWeeks = Math.ceil(totalDays/7);
+
+  // Build month label positions
+  const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  let monthHtml='';
+  let curMonth=-1;
+  const weekWidths=[];
+  let d=new Date(startMon);
+  for(let w=0;w<totalWeeks;w++){
+    const m=d.getMonth();
+    if(m!==curMonth){
+      monthHtml+=`<div class="hmap-month-lbl" style="min-width:${16*(w===0?1:1)}px;padding-left:2px;">${months[m]}</div>`;
+      curMonth=m;
+    } else {
+      monthHtml+=`<div class="hmap-month-lbl" style="min-width:16px;"></div>`;
+    }
+    d.setDate(d.getDate()+7);
+  }
+  monthsEl.innerHTML=monthHtml;
+
+  // Build grid
+  grid.innerHTML='';
+  grid.style.gridAutoColumns='13px';
+
+  let studyDays=0, totalStudySecs=0;
+  let curW=-1, colEl=null;
+  d=new Date(startMon);
+
+  for(let w=0;w<totalWeeks;w++){
+    for(let dow=0;dow<7;dow++){
+      const cell=document.createElement('div');
+      cell.className='hmap-cell';
+      const k=consDateKey(d);
+      const data=dayMap[k]||{secs:0,qs:0,correct:0};
+      const lvl=consLevel(data.secs);
+      cell.setAttribute('data-l',lvl);
+
+      const isThisYear=d.getFullYear()===year;
+      if(!isThisYear) cell.setAttribute('data-l','0');
+      const isFuture=d>today;
+      if(isFuture){cell.setAttribute('data-l','0');cell.style.opacity='.25';}
+
+      if(!isFuture && isThisYear && data.secs>0){
+        studyDays++;
+        totalStudySecs+=data.secs;
+      }
+
+      // Tooltip
+      const dateStr=d.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+      const timeStr=data.secs>0?formatHM(data.secs):'Sem estudo';
+      const qsStr=data.qs>0?`${data.qs} questões`:'';
+      cell.addEventListener('mouseenter',function(e){
+        const tt=document.getElementById('hmap-tooltip');
+        const ttDate=document.getElementById('hmap-tt-date');
+        const ttTime=document.getElementById('hmap-tt-time');
+        const ttQs=document.getElementById('hmap-tt-qs');
+        if(tt){
+          ttDate.textContent=dateStr;
+          ttTime.textContent='⏱ '+timeStr;
+          ttQs.textContent=qsStr?'✎ '+qsStr:'';
+          tt.classList.add('show');
+        }
+      });
+      cell.addEventListener('mousemove',function(e){
+        const tt=document.getElementById('hmap-tooltip');
+        if(tt){tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';}
+      });
+      cell.addEventListener('mouseleave',function(){
+        const tt=document.getElementById('hmap-tooltip');
+        if(tt)tt.classList.remove('show');
+      });
+
+      grid.appendChild(cell);
+      d.setDate(d.getDate()+1);
+    }
+  }
+
+  if(subEl){
+    const pct=Math.round(studyDays/365*100);
+    subEl.textContent=`${year} · ${studyDays} dias estudados · ${pct}% do ano · ${formatHM(totalStudySecs)} total`;
+  }
+}
+
+// ── Monthly bars ──────────────────────────────
+function consRenderMonthly() {
+  const barsEl=document.getElementById('cons-mbars');
+  const labelsEl=document.getElementById('cons-mbar-labels');
+  if(!barsEl) return;
+
+  const dayMap=consGetDayMap();
+  const now=new Date();
+  const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+  // Last 12 months
+  const data=[];
+  for(let i=11;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    let secs=0;
+    const daysInM=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    for(let day=1;day<=daysInM;day++){
+      const k=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+day.toString().padStart(2,'0');
+      if(dayMap[k]) secs+=dayMap[k].secs;
+    }
+    data.push({lbl:months[d.getMonth()],secs,month:d.getMonth(),year:d.getFullYear()});
+  }
+
+  const maxSecs=Math.max(...data.map(d=>d.secs),1);
+  const nowMonth=now.getMonth(),nowYear=now.getFullYear();
+
+  barsEl.innerHTML=data.map(d=>{
+    const pct=Math.round(d.secs/maxSecs*100);
+    const isCurrent=(d.month===nowMonth&&d.year===nowYear);
+    const h=Math.floor(d.secs/3600);
+    const mins=Math.floor((d.secs%3600)/60);
+    const timeStr=h>0?`${h}h${mins.toString().padStart(2,'0')}m`:(d.secs>0?`${mins}m`:'—');
+    const color=isCurrent?'linear-gradient(180deg,var(--cyan),rgba(74,108,247,.3))':'linear-gradient(180deg,var(--green),rgba(52,211,153,.2))';
+    return `<div class="mbar" style="height:${Math.max(pct,d.secs>0?4:1)}%;background:${color};${isCurrent?'box-shadow:0 0 8px rgba(74,108,247,.3);':''}" title="${d.lbl}: ${timeStr}"></div>`;
+  }).join('');
+
+  labelsEl.innerHTML=data.map((d,i)=>`<div class="mbar-lbl" ${i===11?'style="color:var(--cyan);font-weight:700;"':''}>${d.lbl}</div>`).join('');
+}
+
+// ── Weekday distribution ──────────────────────
+function consRenderWeekdays() {
+  const el=document.getElementById('cons-wdays');
+  if(!el) return;
+
+  const dayMap=consGetDayMap();
+  const days=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const wdData=[0,0,0,0,0,0,0]; // secs per weekday
+  const wdCount=[0,0,0,0,0,0,0];
+
+  Object.entries(dayMap).forEach(([k,v])=>{
+    const d=new Date(k+'T12:00:00');
+    const dow=d.getDay();
+    wdData[dow]+=v.secs;
+    if(v.secs>0)wdCount[dow]++;
+  });
+
+  const maxSecs=Math.max(...wdData,1);
+
+  el.innerHTML=days.map((lbl,i)=>{
+    const pct=Math.round(wdData[i]/maxSecs*100);
+    const h=Math.floor(wdData[i]/3600);
+    const m=Math.floor((wdData[i]%3600)/60);
+    const timeStr=h>0?`${h}h${m.toString().padStart(2,'0')}m`:(wdData[i]>0?`${m}m`:'—');
+    const isWeekend=(i===0||i===6);
+    const color=i===1||i===2||i===3||i===4||i===5?'var(--cyan)':'var(--purple)';
+    return `<div class="wday-row">
+      <div class="wday-lbl">${lbl}</div>
+      <div class="wday-bar-bg">
+        <div class="wday-bar-fill" style="width:${pct}%;background:${color}88;"></div>
+      </div>
+      <div class="wday-val" style="color:${color};">${timeStr}</div>
+    </div>`;
+  }).join('');
+
+  // Animate bars after DOM insertion
+  setTimeout(()=>{
+    el.querySelectorAll('.wday-bar-fill').forEach(b=>{
+      const w=b.style.width; b.style.width='0'; 
+      requestAnimationFrame(()=>{ setTimeout(()=>b.style.width=w, 50); });
+    });
+  }, 100);
+}
+
+// ── Time of day ───────────────────────────────
+function consRenderTimeOfDay() {
+  const el=document.getElementById('cons-tod');
+  const labelsEl=document.getElementById('cons-tod-labels');
+  const peakEl=document.getElementById('cons-tod-peak');
+  if(!el) return;
+
+  // Last 90 days sessions with timeStr
+  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-90);
+  const hours=new Array(24).fill(0); // seconds per hour
+
+  (state.sessions||[]).forEach(s=>{
+    if(!s.date) return;
+    const d=new Date(s.date);
+    if(d<cutoff) return;
+    const h=d.getHours();
+    hours[h]+=s.seconds||0;
+  });
+
+  const maxH=Math.max(...hours,1);
+  const peakHour=hours.indexOf(Math.max(...hours));
+
+  el.innerHTML=hours.map((secs,h)=>{
+    const pct=Math.round(secs/maxH*100);
+    const isNight=(h>=22||h<=5);
+    const isMorning=(h>=6&&h<=11);
+    const isAfternoon=(h>=12&&h<=17);
+    const isEvening=(h>=18&&h<=21);
+    const color=isNight?'#4a3060':isMorning?'#f0a500':isAfternoon?'#22c55e':'#4a6cf7';
+    return `<div class="tod-bar" style="height:${Math.max(pct,secs>0?5:2)}%;background:${color};opacity:${secs>0?.8:.2};" title="${h}h: ${secs>0?formatHM(secs):'—'}"></div>`;
+  }).join('');
+
+  // Labels: show every 6h
+  labelsEl.innerHTML=hours.map((_,h)=>`<div class="tod-hour-lbl">${h%6===0?h+'h':''}</div>`).join('');
+
+  if(peakEl && hours[peakHour]>0){
+    const partOfDay=peakHour<6?'🌙 Madrugada':peakHour<12?'🌅 Manhã':peakHour<18?'☀️ Tarde':'🌆 Noite';
+    peakEl.innerHTML=`<span style="color:var(--gold);">${partOfDay}</span><span style="color:var(--muted2);">Pico: ${peakHour}h–${peakHour+1}h · ${formatHM(hours[peakHour])}</span>`;
+  }
+}
+
+// ── Milestones ────────────────────────────────
+function consRenderMilestones() {
+  const el=document.getElementById('cons-milestones');
+  if(!el) return;
+
+  const dayMap=consGetDayMap();
+  const {cur,best}=consCalcStreak(dayMap);
+  const totalDays=Object.keys(dayMap).filter(k=>dayMap[k].secs>0).length;
+  const totalSecs=Object.values(dayMap).reduce((a,d)=>a+d.secs,0);
+  const totalQs=(state.questionSessions||[]).reduce((a,s)=>a+s.total,0);
+
+  const milestones=[
+    {icon:'🔥',name:'Primeiros Passos',desc:'Estudar 3 dias seguidos',target:3,val:best,type:'streak'},
+    {icon:'⚡',name:'Semana Completa',desc:'7 dias consecutivos',target:7,val:best,type:'streak'},
+    {icon:'💎',name:'Quinzena de Ouro',desc:'15 dias consecutivos',target:15,val:best,type:'streak'},
+    {icon:'🏆',name:'Mês Perfeito',desc:'30 dias consecutivos',target:30,val:best,type:'streak'},
+    {icon:'📅',name:'Consistente',desc:'50 dias estudados no total',target:50,val:totalDays,type:'days'},
+    {icon:'🎯',name:'Centurião',desc:'100 dias estudados no total',target:100,val:totalDays,type:'days'},
+    {icon:'✎',name:'Resoluto',desc:'500 questões resolvidas',target:500,val:totalQs,type:'qs'},
+    {icon:'🧠',name:'Mestre das Questões',desc:'2000 questões resolvidas',target:2000,val:totalQs,type:'qs'},
+  ];
+
+  el.innerHTML=milestones.map(m=>{
+    const pct=Math.min(100,Math.round(m.val/m.target*100));
+    const unlocked=m.val>=m.target;
+    return `<div class="streak-milestone ${unlocked?'unlocked':'locked'}">
+      <div class="streak-milestone-icon">${m.icon}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="streak-milestone-name">${m.name}</div>
+        <div class="streak-milestone-sub">${m.desc}</div>
+        ${!unlocked?`<div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:.3rem;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${pct>50?'var(--gold)':'var(--cyan)'};border-radius:2px;transition:width .8s;"></div></div>`:''}
+      </div>
+      <div class="streak-milestone-val" style="color:${unlocked?'var(--gold)':'var(--muted2)'};">
+        ${unlocked?'✓':''+m.val+'/'+m.target}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Weekly table ──────────────────────────────
+function consRenderWeekTable() {
+  const tbody=document.getElementById('cons-weeks-body');
+  const subEl=document.getElementById('cons-weeks-subtitle');
+  if(!tbody) return;
+
+  const dayMap=consGetDayMap();
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  // Build weeks (last 16 weeks)
+  const weeks=[];
+  for(let w=0;w<16;w++){
+    // Monday of w weeks ago
+    const mon=new Date(today);
+    const dow=today.getDay()===0?6:today.getDay()-1;
+    mon.setDate(today.getDate()-dow-w*7);
+    const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+
+    let secs=0,qs=0,correct=0,days=0;
+    for(let d=0;d<7;d++){
+      const dd=new Date(mon); dd.setDate(mon.getDate()+d);
+      const k=consDateKey(dd);
+      if(dayMap[k]){
+        secs+=dayMap[k].secs||0;
+        qs+=dayMap[k].qs||0;
+        correct+=dayMap[k].correct||0;
+        if(dayMap[k].secs>0||dayMap[k].qs>0) days++;
+      }
+    }
+    const isCurrentWeek=(w===0);
+    weeks.push({mon,sun,secs,qs,correct,days,isCurrentWeek});
+  }
+
+  if(subEl) subEl.textContent=`Últimas ${weeks.filter(w=>w.secs>0||w.qs>0).length} semanas com atividade`;
+
+  tbody.innerHTML=weeks.map(w=>{
+    if(w.secs===0&&w.qs===0&&!w.isCurrentWeek){
+      // Show empty weeks only for recent ones
+      if(weeks.indexOf(w)>3) return '';
+    }
+    const rate=w.qs>0?Math.round(w.correct/w.qs*100):null;
+    const rc=rate===null?'var(--muted2)':rate>=70?'var(--green)':rate>=50?'var(--gold)':'var(--red)';
+    const score=consWeekScore(w.days,w.secs,w.qs,rate);
+    const scoreColor=score>=80?'var(--green)':score>=60?'var(--gold)':score>=40?'var(--orange)':'var(--muted2)';
+    const monStr=w.mon.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    const sunStr=w.sun.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    return `<tr style="border-bottom:1px solid var(--border);${w.isCurrentWeek?'background:rgba(74,108,247,.05);':''}">
+      <td style="padding:.5rem .6rem;">
+        <span style="font-size:.72rem;font-weight:600;">${monStr} – ${sunStr}</span>
+        ${w.isCurrentWeek?'<span style="font-size:.5rem;background:rgba(74,108,247,.2);color:var(--cyan);border:1px solid rgba(74,108,247,.3);border-radius:4px;padding:1px 5px;margin-left:.4rem;font-weight:700;">ATUAL</span>':''}
+      </td>
+      <td style="text-align:center;padding:.5rem .6rem;">
+        <span style="font-family:var(--mono);font-size:.8rem;font-weight:700;color:${w.days>=5?'var(--green)':w.days>=3?'var(--gold)':w.days>0?'var(--orange)':'var(--muted2)'};">${w.days}</span>
+        <span style="font-size:.58rem;color:var(--muted2);">/7</span>
+      </td>
+      <td style="text-align:center;padding:.5rem .6rem;font-family:var(--mono);font-size:.75rem;color:var(--text);">${w.secs>0?formatHM(w.secs):'—'}</td>
+      <td style="text-align:center;padding:.5rem .6rem;font-family:var(--mono);font-size:.75rem;">${w.qs||'—'}</td>
+      <td style="text-align:center;padding:.5rem .6rem;"><span style="font-family:var(--mono);font-size:.75rem;font-weight:700;color:${rc};">${rate!==null?rate+'%':'—'}</span></td>
+      <td style="text-align:center;padding:.5rem .6rem;"><span style="font-family:var(--mono);font-size:.82rem;font-weight:700;color:${scoreColor};">${score>0?score:'—'}</span></td>
+    </tr>`;
+  }).filter(Boolean).join('');
+}
+
+function consWeekScore(days, secs, qs, rate) {
+  if(days===0&&secs===0&&qs===0) return 0;
+  let s=0;
+  s += Math.min(40, Math.round(days/7*40)); // 40pts for 7 days
+  s += Math.min(30, Math.round(secs/3600/14*30)); // 30pts for 14h
+  if(qs>0 && rate!==null) s += Math.round(rate*0.3); // 30pts for accuracy
+  return Math.min(100,s);
+}
+
 // ═══ RENDER ALL ════════════════════════════════
 function renderAll(){updateStats();renderDisciplines();renderWeekGrid();renderLog();renderProgress();renderQPerf();renderQLog();renderQGoalsList();mwInit();renderSpeedSettings();dashInitWeekSelector();}
 function updateAll(){updateStats();renderDisciplines();renderProgress();renderQPerf();renderLog();}
@@ -7261,6 +8097,8 @@ function goPage(name,el){
   if(name==='disciplinas') { renderDiscFull(); }
   if(name==='sessao') sqInit();
   if(name==='filarev') filarevInit();
+  if(name==='consistencia') consInit();
+  if(name==='problemáticas') problematicasInit();
 }
 
 // ═══════════════════════════════════════════════
@@ -11979,6 +12817,232 @@ function backupUpdateStats(){
 let frIntervalMins = 11;
 let frQueueInterval = null;
 
+// ═══════════════════════════════════════════════
+// WRONG HISTORY — rastreamento de reincidências
+// ═══════════════════════════════════════════════
+
+function whEnsure(){
+  if(!state.wrongHistory || typeof state.wrongHistory !== 'object') state.wrongHistory = {};
+}
+
+function wrongHistoryUpdateBadge(){
+  whEnsure();
+  const reincList = Object.values(state.wrongHistory).filter(q=>q.erros>=2);
+  const badge = document.getElementById('wh-nav-badge');
+  if(badge){
+    badge.textContent = reincList.length;
+    badge.style.display = reincList.length > 0 ? '' : 'none';
+  }
+  // Update count in section header
+  const cnt = document.getElementById('wh-reinc-count');
+  if(cnt) cnt.textContent = reincList.length;
+}
+
+function wrongHistoryRender(){
+  whEnsure();
+  const el = document.getElementById('wh-list');
+  if(!el) return;
+
+  const all = Object.values(state.wrongHistory).sort((a,b)=>b.erros-a.erros);
+
+  // Filter
+  const filter = document.getElementById('wh-filter-sel')?.value || 'all';
+  const filtered = filter === 'reinc' ? all.filter(q=>q.erros>=2)
+                 : filter === 'once'  ? all.filter(q=>q.erros===1)
+                 : all;
+
+  if(!filtered.length){
+    el.innerHTML = `<div style="font-size:.72rem;color:var(--muted2);text-align:center;padding:1rem 0;">
+      Nenhum erro registrado ainda.<br>
+      <span style="font-size:.65rem;color:var(--muted);">O Monitor ⚡ vai capturar automaticamente quando você errar questões no TEC.</span>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map(q=>{
+    const isReinc = q.erros >= 2;
+    const disc = state.disciplines.find(d=>d.name.toLowerCase().includes((q.materia||'').toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
+    const color = disc ? disc.color : '#ef4444';
+    const lastDate = q.lastErro ? new Date(q.lastErro).toLocaleDateString('pt-BR') : '—';
+    const totalTecErros = q.myErrors > 0 ? q.myErrors : q.erros;
+    const alreadyInFila = state.filaRevisao.some(f=>f.link===q.url && f.status!=='done');
+
+    // Severity
+    const sevIcon = q.erros>=5?'💀':q.erros>=3?'🔴':q.erros>=2?'⚠️':'📋';
+    const sevColor = q.erros>=5?'#ef4444':q.erros>=3?'#f97316':q.erros>=2?'#f59e0b':'var(--muted3)';
+
+    return `<div style="background:var(--surf2);border:1px solid ${isReinc?'rgba(239,68,68,.3)':'var(--border)'};border-radius:var(--r);padding:.7rem .9rem;transition:all .15s;${isReinc?'background:rgba(239,68,68,.04);':''}"
+      onmouseenter="this.style.borderColor='${isReinc?'rgba(239,68,68,.5)':'var(--border2)'}'"
+      onmouseleave="this.style.borderColor='${isReinc?'rgba(239,68,68,.3)':'var(--border)'}'">
+      <div style="display:flex;align-items:flex-start;gap:.6rem;">
+        <div style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">${sevIcon}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.2rem;">
+            <span style="font-size:.78rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;"
+              title="${q.desc||q.url}">${q.desc||'Questão TecConcursos'}</span>
+            <span style="font-size:.55rem;font-weight:800;padding:1px 7px;border-radius:10px;background:${sevColor}22;color:${sevColor};border:1px solid ${sevColor}44;flex-shrink:0;">
+              ${q.erros}× erro${q.erros>1?'s':''}
+            </span>
+            ${q.myTotal>0?`<span style="font-size:.52rem;padding:1px 6px;border-radius:8px;background:rgba(74,108,247,.1);color:var(--cyan);border:1px solid rgba(74,108,247,.2);">TEC: ${q.myTotal} resolução${q.myTotal>1?'ões':''}</span>`:''}
+          </div>
+          <div style="font-size:.6rem;color:var(--muted2);">
+            ${q.materia?`<span style="color:${color};font-weight:700;">${q.materia.replace('Dir. ','')}</span> · `:''}
+            ${q.assunto?q.assunto.slice(0,55)+' · ':''}
+            Último erro: ${lastDate}
+          </div>
+          ${q.datas&&q.datas.length>1?`<div style="display:flex;gap:3px;margin-top:.35rem;flex-wrap:wrap;">
+            ${q.datas.slice(-5).map(d=>`<span style="font-size:.5rem;padding:1px 5px;border-radius:4px;background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.2);">${new Date(d).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`).join('')}
+          </div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0;align-items:flex-end;">
+          <a href="${q.url}" target="_blank"
+            style="background:rgba(74,108,247,.12);border:1px solid rgba(74,108,247,.3);border-radius:6px;padding:3px 8px;font-size:.6rem;color:var(--cyan);text-decoration:none;font-weight:700;white-space:nowrap;">
+            🔗 Abrir
+          </a>
+          ${!alreadyInFila?`<button onclick="whAddToFila('${q.qid}')"
+            style="background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.3);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:.6rem;color:var(--gold);font-weight:700;font-family:var(--ff);white-space:nowrap;">
+            + Fila
+          </button>`:`<span style="font-size:.55rem;color:var(--green);font-weight:700;">✓ Na fila</span>`}
+          <button onclick="whClearOne('${q.qid}')"
+            style="background:none;border:1px solid rgba(248,113,113,.2);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--red);">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  wrongHistoryUpdateBadge();
+}
+
+function whAddToFila(qid){
+  whEnsure(); frEnsure();
+  const q = state.wrongHistory[qid];
+  if(!q) return;
+  const already = state.filaRevisao.some(f=>f.link===q.url && f.status!=='done');
+  if(already){ flash('Já está na fila de revisão!','#f0b429'); return; }
+  const disc = state.disciplines.find(d=>d.name.toLowerCase().includes((q.materia||'').toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
+  const now = Date.now();
+  state.filaRevisao.unshift({
+    id: uid(), link: q.url, qid: q.qid,
+    desc: q.desc, materia: q.materia, assunto: q.assunto,
+    discId:    disc?disc.id:'', discName: disc?disc.name:(q.materia||'—'), discColor: disc?disc.color:'#ef4444',
+    intervalMins: 30, addedAt: now, dueAt: now+30*60000,
+    status:'waiting', openedAt:null, doneAt:null,
+    erros: q.erros, reincidente: q.erros>=2, prioridade: q.erros>=2?'alta':'normal',
+  });
+  saveState(); frRender(); frUpdateNavBadge(); wrongHistoryRender();
+  flash('✅ Adicionada à fila de revisão!','#10b981');
+}
+
+function whClearOne(qid){
+  whEnsure();
+  if(!confirm('Remover este histórico de erros?')) return;
+  delete state.wrongHistory[qid];
+  saveState(); wrongHistoryRender(); wrongHistoryUpdateBadge();
+}
+
+function whClearDone(){
+  whEnsure();
+  // Remove questões que já foram revisadas (done na fila)
+  const doneUrls = new Set((state.filaRevisao||[]).filter(f=>f.status==='done').map(f=>f.link));
+  let removed = 0;
+  Object.keys(state.wrongHistory).forEach(k=>{
+    if(doneUrls.has(state.wrongHistory[k].url)){
+      delete state.wrongHistory[k]; removed++;
+    }
+  });
+  saveState(); wrongHistoryRender(); wrongHistoryUpdateBadge();
+  flash(`🧹 ${removed} questão(ões) revisadas removidas do histórico`,'#10b981');
+}
+
+function whFilterChange(){
+  wrongHistoryRender();
+}
+
+function whAddAllReincToFila(){
+  whEnsure(); frEnsure();
+  const reincs = Object.values(state.wrongHistory).filter(q=>q.erros>=2);
+  if(!reincs.length){ flash('Nenhuma questão reincidente ainda!','#f0b429'); return; }
+  let added=0;
+  reincs.forEach(q=>{
+    if(state.filaRevisao.some(f=>f.link===q.url && f.status!=='done')) return;
+    const disc = state.disciplines.find(d=>d.name.toLowerCase().includes((q.materia||'').toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
+    const now=Date.now();
+    state.filaRevisao.unshift({
+      id:uid(),link:q.url,qid:q.qid,desc:q.desc,materia:q.materia,assunto:q.assunto,
+      discId:disc?disc.id:'',discName:disc?disc.name:(q.materia||'—'),discColor:disc?disc.color:'#ef4444',
+      intervalMins:15,addedAt:now,dueAt:now+15*60000,status:'waiting',openedAt:null,doneAt:null,
+      erros:q.erros,reincidente:true,prioridade:'alta'
+    });
+    added++;
+  });
+  saveState();frRender();frUpdateNavBadge();wrongHistoryRender();whRenderKpis();
+  flash(`✅ ${added} questão(ões) reincidente(s) adicionada(s) à fila!`,'#10b981');
+}
+
+function whClearAll(){
+  whEnsure();
+  if(!confirm('Apagar TODO o histórico de questões erradas?\n\nEsta ação é irreversível.')) return;
+  state.wrongHistory={};
+  saveState();wrongHistoryRender();wrongHistoryUpdateBadge();whRenderKpis();
+  flash('🗑 Histórico limpo.','#ef4444');
+}
+
+function whRenderKpis(){
+  whEnsure();
+  const all=Object.values(state.wrongHistory);
+  const reinc=all.filter(q=>q.erros>=2).length;
+  const naFila=(state.filaRevisao||[]).filter(f=>all.some(q=>q.url===f.link)&&f.status!=='done').length;
+  const done=(state.filaRevisao||[]).filter(f=>all.some(q=>q.url===f.link)&&f.status==='done').length;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('wh-k-reinc',reinc);
+  set('wh-k-total',all.length);
+  set('wh-k-fila',naFila);
+  set('wh-k-done',done);
+}
+
+function whRenderByMateria(){
+  const el=document.getElementById('wh-by-materia');
+  if(!el)return;
+  whEnsure();
+  const all=Object.values(state.wrongHistory);
+  const matMap={};
+  all.forEach(q=>{
+    const m=q.materia||'Sem matéria';
+    if(!matMap[m])matMap[m]={erros:0,questoes:0,reinc:0};
+    matMap[m].questoes++;
+    matMap[m].erros+=q.erros;
+    if(q.erros>=2)matMap[m].reinc++;
+  });
+  const entries=Object.entries(matMap).sort((a,b)=>b[1].erros-a[1].erros);
+  if(!entries.length){el.innerHTML='<div style="font-size:.65rem;color:var(--muted2);">Nenhum dado ainda.</div>';return;}
+  const maxErros=Math.max(...entries.map(e=>e[1].erros),1);
+  el.innerHTML=entries.map(([m,d])=>{
+    const pct=Math.round(d.erros/maxErros*100);
+    const disc=state.disciplines.find(x=>x.name.toLowerCase().includes(m.toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
+    const color=disc?disc.color:'#ef4444';
+    return `<div style="padding:.45rem 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">
+        <span style="font-size:.68rem;font-weight:700;color:${color};">${m.replace('Dir. ','')}</span>
+        <div style="display:flex;gap:.35rem;font-family:var(--mono);font-size:.6rem;">
+          <span style="color:var(--red);">${d.erros} erros</span>
+          ${d.reinc>0?`<span style="color:#f97316;">${d.reinc} reinc.</span>`:''}
+        </div>
+      </div>
+      <div style="height:4px;background:rgba(255,255,255,.04);border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:2px;transition:width .6s;"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function problematicasInit(){
+  whEnsure();
+  wrongHistoryRender();
+  whRenderKpis();
+  whRenderByMateria();
+  wrongHistoryUpdateBadge();
+}
+
 function frEnsure() {
   if (!state.filaRevisao) state.filaRevisao = [];
 }
@@ -12300,6 +13364,7 @@ function frRender() {
 
     const el = document.createElement('div');
     el.className = `fr-item fr-${item.status}`;
+    if(item.reincidente) el.style.borderColor = 'rgba(239,68,68,.35)';
     el.innerHTML = `
       <!-- Countdown -->
       <div class="fr-countdown" style="color:${countdownColor};">
@@ -12309,8 +13374,11 @@ function frRender() {
 
       <!-- Info -->
       <div style="flex:1;min-width:0;">
-        <div style="font-size:.8rem;font-weight:700;margin-bottom:.2rem;${isDone?'text-decoration:line-through;color:var(--muted3)':''};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          ${item.desc || 'Questão'}
+        <div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.2rem;flex-wrap:wrap;">
+          ${item.reincidente ? `<span style="font-size:.5rem;padding:1px 5px;border-radius:4px;background:rgba(239,68,68,.2);color:#ef4444;border:1px solid rgba(239,68,68,.4);font-weight:800;flex-shrink:0;">⚠️ ${item.erros||2}× ERRO</span>` : ''}
+          <div style="font-size:.8rem;font-weight:700;${isDone?'text-decoration:line-through;color:var(--muted3)':'color:var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">
+            ${item.desc || 'Questão'}
+          </div>
         </div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;font-size:.6rem;color:var(--muted2);">
           ${item.discName !== '—' ? `<span style="color:${item.discColor};font-weight:700;">${item.discName.replace('Dir. ','')}</span>` : ''}
@@ -12341,7 +13409,7 @@ function frRender() {
   });
 }
 
-function filarevInit() {
+
 
 // ═══════════════════════════════════════════════
 // ASSUNTOS DO CADERNO TEC
@@ -12357,7 +13425,8 @@ function tecCadRegistrarAuto(data){
   const now=new Date().toISOString();
   if(existing){
     existing.ultimaVez=now;
-    if(data.totalQuestoes>0&&data.totalQuestoes>existing.totalQuestoes)existing.totalQuestoes=data.totalQuestoes;
+    // Atualiza totalQuestoes se o novo valor for maior que zero
+    if(data.totalQuestoes>0)existing.totalQuestoes=data.totalQuestoes;
     if(data.caderno&&!existing.caderno)existing.caderno=data.caderno;
     saveState();tecCadRender();return;
   }
@@ -12376,17 +13445,21 @@ function tecCadModalOpen(){
   tecCadEnsure();
   const sel=document.getElementById('teccad-m-materia');
   if(sel){sel.innerHTML='<option value="">— selecione a disciplina —</option>';state.disciplines.forEach(d=>sel.appendChild(new Option(d.name,d.id)));}
-  const assInp=document.getElementById('teccad-m-assunto');
-  const cadInp=document.getElementById('teccad-m-caderno');
-  const totInp=document.getElementById('teccad-m-total');
-  if(assInp&&!assInp.value&&_cronInv.assunto)assInp.value=_cronInv.assunto;
-  if(cadInp&&!cadInp.value&&_cronInv.caderno)cadInp.value=_cronInv.caderno;
-  if(totInp&&!totInp.value&&_cronInv.total>0)totInp.value=_cronInv.total;
-  if(sel&&!sel.value&&_cronInv.materia){
-    const matLower=_cronInv.materia.toLowerCase().replace(/^dir\.\s*/,'');
-    const disc=state.disciplines.find(d=>{const n=d.name.toLowerCase().replace(/^dir\.\s*/,'');return n.includes(matLower)||matLower.includes(n);});
-    if(disc)sel.value=disc.id;
-  }
+  // Pré-preenche com dados do Monitor TEC (se disponível)
+  try{
+    const inv=(typeof _cronInv!=='undefined'?_cronInv:null)||{};
+    const assInp=document.getElementById('teccad-m-assunto');
+    const cadInp=document.getElementById('teccad-m-caderno');
+    const totInp=document.getElementById('teccad-m-total');
+    if(assInp&&!assInp.value&&inv.assunto)assInp.value=inv.assunto;
+    if(cadInp&&!cadInp.value&&inv.caderno)cadInp.value=inv.caderno;
+    if(totInp&&!totInp.value&&inv.total>0)totInp.value=inv.total;
+    if(sel&&!sel.value&&inv.materia){
+      const matLower=inv.materia.toLowerCase().replace(/^dir\.\s*/,'');
+      const disc=state.disciplines.find(d=>{const n=d.name.toLowerCase().replace(/^dir\.\s*/,'');return n.includes(matLower)||matLower.includes(n);});
+      if(disc)sel.value=disc.id;
+    }
+  }catch(e){}
   const modal=document.getElementById('teccad-modal');
   if(modal)modal.style.display='flex';
 }
@@ -12428,6 +13501,17 @@ function tecCadDelete(id){
   if(!confirm('Remover este assunto?'))return;
   state.tecCadernos=state.tecCadernos.filter(c=>c.id!==id);
   saveState();tecCadRender();tecCadUpdateKpis();
+}
+
+function tecCadEditTotal(id){
+  tecCadEnsure();
+  const c=state.tecCadernos.find(x=>x.id===id);
+  if(!c)return;
+  const novo=prompt('Total de questoes no caderno TEC:\n'+c.assunto, c.totalQuestoes||'');
+  if(novo===null)return;
+  c.totalQuestoes=parseInt(novo)||0;
+  saveState();tecCadRender();tecCadUpdateKpis();
+  flash('Quantidade: '+c.totalQuestoes+' questoes','#818cf8');
 }
 
 let _tecCadFilter='';
@@ -12489,7 +13573,7 @@ function tecCadRender(){
       +'<span style="font-size:.78rem;font-weight:700;">'+(assunto||'—')+'</span>'
       +'<span style="font-size:.52rem;padding:1px 5px;border-radius:4px;background:'+(c.fonte==='auto'?'rgba(74,108,247,.12)':'rgba(129,140,248,.12)')+';color:'+(c.fonte==='auto'?'var(--cyan)':'var(--purple)')+';border:1px solid '+(c.fonte==='auto'?'rgba(74,108,247,.25)':'rgba(129,140,248,.25)')+';">'+fonteIcon+' '+(c.fonte==='auto'?'Auto':'Manual')+'</span>'
       +'</div>'
-      +'<div style="font-size:.6rem;color:var(--muted2);">'+(c.discName||materia||'—')+' · '+(c.totalQuestoes>0?c.totalQuestoes+' questões':'?q')+' · '+dateStr+'</div>'
+      +'<div style="font-size:.6rem;color:var(--muted2);">'+(c.discName||materia||'—')+' · <span style="cursor:pointer;border-bottom:1px dashed var(--muted);" title="Clique para editar quantidade" onclick="tecCadEditTotal(\'' + c.id + '\')">'+( c.totalQuestoes>0?c.totalQuestoes+' questões':'?q ✎')+'</span> · '+dateStr+'</div>'
       +(c.caderno?'<div style="font-size:.58rem;color:var(--muted);margin-top:.15rem;">📚 '+c.caderno.slice(0,55)+'</div>':'')
       +subHtml
       +'</div>'
@@ -12506,6 +13590,8 @@ function tecCadRender(){
   tecCadUpdateKpis();
 }
 
+
+function filarevInit() {
   frRender();
   cadrRender();
   tecCadrLoadSaved();
@@ -15665,52 +16751,91 @@ window.addEventListener('message', function(e){
       else if(r === 'wrong') tecKeyQ('wrong');
     }
 
-    // Questão errada com URL → adiciona automaticamente à fila de revisão
+    // Questão errada com URL → rastreia reincidências + adiciona à fila
     if(r === 'wrong' && e.data.url){
       frEnsure();
       var qUrl     = e.data.url;
-      var qDesc    = e.data.desc    || e.data.assunto || 'Questão TecConcursos';
-      var qMateria = e.data.materia || '';
-      var qAssunto = e.data.assunto || '';
+      var qId      = e.data.qid      || qUrl.replace(/.*\//,'');
+      var qDesc    = e.data.desc     || e.data.assunto || 'Questão TecConcursos';
+      var qMateria = e.data.materia  || '';
+      var qAssunto = e.data.assunto  || '';
+      var myTotal  = parseInt(e.data.myTotal)  || 0; // resoluções anteriores no TEC
+      var myErrors = parseInt(e.data.myErrors) || 0; // erros anteriores no TEC
 
-      // Não duplicar
-      if(!state.filaRevisao.some(function(q){ return q.link === qUrl; })){
-        // Tenta associar à disciplina pelo nome da matéria
-        var disc = null;
-        if(qMateria){
-          var matLower = qMateria.toLowerCase().replace(/^dir\.\s*/,'');
-          disc = state.disciplines.find(function(d){
-            var n = d.name.toLowerCase().replace(/^dir\.\s*/,'');
-            return n.includes(matLower) || matLower.includes(n);
-          });
-        }
-        // Fallback: disciplina ativa no cronômetro
-        if(!disc && typeof cronState !== 'undefined' && cronState.discId){
-          disc = state.disciplines.find(function(d){ return d.id === cronState.discId; });
-        }
+      // ── 1. Registrar no wrongHistory ──────────────
+      if(!state.wrongHistory) state.wrongHistory = {};
+      if(!state.wrongHistory[qId]){
+        state.wrongHistory[qId] = {
+          qid: qId, url: qUrl, desc: qDesc,
+          materia: qMateria, assunto: qAssunto,
+          erros: 0, datas: [], myTotal: 0, myErrors: 0,
+          firstErro: new Date().toISOString()
+        };
+      }
+      var wh = state.wrongHistory[qId];
+      wh.erros++;
+      wh.datas.push(new Date().toISOString());
+      wh.desc    = qDesc    || wh.desc;
+      wh.materia = qMateria || wh.materia;
+      wh.assunto = qAssunto || wh.assunto;
+      if(myTotal  > wh.myTotal)  wh.myTotal  = myTotal;
+      if(myErrors > wh.myErrors) wh.myErrors = myErrors;
+      wh.lastErro = new Date().toISOString();
 
-        var now = Date.now();
-        var mins = 30; // intervalo padrão para revisão automática
+      var isReincidente = (wh.erros > 1) || (myErrors > 1);
+
+      // ── 2. Associar disciplina ────────────────────
+      var disc = null;
+      if(qMateria){
+        var matLower = qMateria.toLowerCase().replace(/^dir\.\s*/,'');
+        disc = state.disciplines.find(function(d){
+          var n = d.name.toLowerCase().replace(/^dir\.\s*/,'');
+          return n.includes(matLower) || matLower.includes(n);
+        });
+      }
+      if(!disc && typeof cronState !== 'undefined' && cronState.discId){
+        disc = state.disciplines.find(function(d){ return d.id === cronState.discId; });
+      }
+
+      // ── 3. Adicionar / atualizar na fila ──────────
+      var existente = state.filaRevisao.find(function(q){ return q.link === qUrl; });
+      var now = Date.now();
+      var mins = isReincidente ? 15 : 30; // reincidente → revisão mais rápida
+
+      if(existente){
+        // Já existe na fila: atualiza e reinicia o intervalo
+        existente.erros = (existente.erros||0) + 1;
+        existente.reincidente = isReincidente;
+        existente.intervalMins = mins;
+        existente.dueAt = now + mins * 60000;
+        existente.status = 'waiting';
+        if(isReincidente) existente.prioridade = 'alta';
+      } else {
         state.filaRevisao.unshift({
           id: uid(),
-          link: qUrl,
-          desc: qDesc,
-          materia: qMateria,
-          assunto: qAssunto,
+          link: qUrl, qid: qId,
+          desc: qDesc, materia: qMateria, assunto: qAssunto,
           discId:    disc ? disc.id    : '',
           discName:  disc ? disc.name  : (qMateria || '—'),
           discColor: disc ? disc.color : '#5a6a8a',
           intervalMins: mins,
-          addedAt: now,
-          dueAt:   now + mins * 60000,
-          status:  'waiting',
-          openedAt: null,
-          doneAt:   null,
+          addedAt: now, dueAt: now + mins * 60000,
+          status: 'waiting', openedAt: null, doneAt: null,
+          erros: 1,
+          reincidente: isReincidente,
+          prioridade: isReincidente ? 'alta' : 'normal',
+          myTotal, myErrors,
         });
-        saveState();
-        frUpdateNavBadge();
+      }
 
-        var label = qAssunto || qMateria || 'Questão';
+      saveState();
+      frUpdateNavBadge();
+      wrongHistoryUpdateBadge();
+
+      var label = qAssunto || qMateria || 'Questão';
+      if(isReincidente){
+        flash('⚠️ Reincidência #'+wh.erros+': ' + label.substring(0,40), '#ef4444', 5000);
+      } else {
         flash('📋 Fila: ' + label.substring(0, 50) + (label.length > 50 ? '…' : ''), '#8b5cf6', 4000);
       }
     }
@@ -15894,6 +17019,11 @@ window.addEventListener('message', function(e){
         'if(info.materia)parts.push(info.materia);' +
         'if(info.assunto)parts.push(info.assunto);' +
         'info.desc=parts.join(" — ")||(info.qid?"Quest\\u00e3o #"+info.qid:"Quest\\u00e3o");' +
+        // ── Parse "Meu Desempenho" do TEC ──
+        'var myResM=tx.match(/Total de resolu[\\u00e7c][\\u00f5o]es[:\\s]+(\\d+)/i);' +
+        'info.myTotal=myResM?parseInt(myResM[1]):0;' +
+        'var myErrArr=tx.match(/Errou/gi);' +
+        'info.myErrors=myErrArr?myErrArr.length:0;' +
         'return info;' +
       '}' +
       // usa referência já capturada — sem window.open aqui dentro do MutationObserver
@@ -15939,6 +17069,7 @@ window.addEventListener('beforeunload', function() {
   }
 });
 loadTheme();loadState();ensureDisciplines();renderColorPicker();renderAll();updateTimerUI();
+try{ wrongHistoryUpdateBadge(); }catch(e){}
 initModalBackdrops();
 try{ renderProvaCountdown(); }catch(e){}
 try{ frEnsure(); frUpdateNavBadge(); setInterval(()=>{ try{frCheckQueue();frUpdateNavBadge();}catch(e){} }, 5000); }catch(e){}
