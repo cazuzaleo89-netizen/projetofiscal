@@ -17081,8 +17081,10 @@ window.addEventListener('message', function(e){
         // ── Parse "Meu Desempenho" do TEC (pode não estar visível ainda) ──
         'var myResM=tx.match(/Total de resolu[\\u00e7c][\\u00f5o]es[:\\s]+(\\d+)/i);' +
         'info.myTotal=myResM?parseInt(myResM[1]):0;' +
-        'var myErrArr=tx.match(/Errou/gi);' +
-        'info.myErrors=myErrArr?myErrArr.length:0;' +
+        // tenta padrões numéricos primeiro: "X erros", "Errou X vezes", "X × errou"
+        'var myErrNumM=tx.match(/(\\d+)\\s*(?:erros?\\b|[x×]\\s*errou)/i)||tx.match(/errou[\\s:]+(\\d+)/i);' +
+        'if(myErrNumM){info.myErrors=parseInt(myErrNumM[1]);}' +
+        'else{var myErrArr=tx.match(/\\bErrou\\b/gi);info.myErrors=myErrArr?myErrArr.length:0;}' +
         'return info;' +
       '}' +
       // usa referência já capturada — sem window.open aqui dentro do MutationObserver
@@ -17097,13 +17099,19 @@ window.addEventListener('message', function(e){
         'var s=parse();if(!s)return;' +
         'var da=s.a-A,de=s.e-E;' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
-        // Erro: atualiza contador imediatamente, mas lê DOM após 500ms
-        // para garantir que o modal "Meu Desempenho" já esteja renderizado
+        // Erro: captura qid/url AGORA (antes da página mudar), depois relê
+        // myErrors do modal "Meu Desempenho" que aparece ~500ms depois
         'if(de>0){' +
           'var _de=de;E=s.e;' +
-          'send("wrong_fast",getInfo());' + // envia imediatamente sem myErrors
+          'var _qi0=getInfo();' + // snapshot: qid/url corretos neste instante
+          'send("wrong_fast",_qi0);' +
           'setTimeout(function(){' +
-            'var qi=getInfo();' + // relê DOM com modal já visível
+            'var qi=getInfo();' + // relê DOM para capturar myErrors do modal
+            // se a página navegou para outra questão, restaura qid/url do snapshot
+            'if(_qi0.qid&&(!qi.qid||qi.qid!==_qi0.qid)){' +
+              'qi.url=_qi0.url;qi.qid=_qi0.qid;' +
+              'qi.desc=_qi0.desc||qi.desc;qi.materia=_qi0.materia||qi.materia;qi.assunto=_qi0.assunto||qi.assunto;' +
+            '}' +
             'for(var i=0;i<_de;i++)send("wrong",qi);' +
           '},500);' +
         '}' +
