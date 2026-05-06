@@ -13849,19 +13849,20 @@ function tecCadrLoadSaved() {
 
 function tecCadrSearch(materia, assunto) {
   tecCadrEnsure();
-  if (!state.tecCaderno.cadernoBase) {
-    flash('Configure a URL do caderno TecConcursos acima primeiro! ⬆', '#f0b429', 4000);
-    document.getElementById('tec-cadr-url-inp')?.focus();
-    return;
-  }
   // Salva termos no localStorage para o bookmarklet ler
   const terms = { materia: materia || '', assunto: assunto || '' };
   try { localStorage.setItem('pfTecSearch', JSON.stringify(terms)); } catch(e) {}
+  if (!state.tecCaderno.cadernoBase) {
+    // Sem caderno configurado: abre TecConcursos genérico para o bookmarklet aplicar o filtro
+    window.open('https://www.tecconcursos.com.br/questoes', '_blank');
+    flash('🔍 TEC aberto! Navegue até seu caderno e clique no bookmarklet ⚡ Monitor para filtrar por "' + (assunto || materia || '') + '".', '#f0b429', 7000);
+    return;
+  }
   // Monta URL do caderno
   let url = 'https://www.tecconcursos.com.br/questoes/filtrar?cadernoBase=' + state.tecCaderno.cadernoBase;
   if (state.tecCaderno.idPasta) url += '&idPasta=' + state.tecCaderno.idPasta;
   window.open(url, '_blank');
-  flash('🔍 TecConcursos aberto! Clique no bookmarklet ⚡ Monitor para aplicar o filtro automaticamente.', '#22d3ee', 7000);
+  flash('🔍 TecConcursos aberto! Clique no bookmarklet ⚡ Monitor para filtrar por "' + (assunto || materia || '') + '".', '#22d3ee', 7000);
 }
 
 // ═══════════════════════════════════════════════
@@ -15302,6 +15303,17 @@ function cronInvStart(data) {
   _cronInv.materia = data.materia  || '';
   _cronInv.assunto = data.assunto  || '';
   _cronInv.caderno = data.caderno  || data.materia || 'TecConcursos';
+
+  // Auto-configura o cadernoBase se o bookmarklet enviou a URL do caderno TEC
+  if (data.cadernoBase && !state.tecCaderno.cadernoBase) {
+    tecCadrEnsure();
+    const fullUrl = 'https://www.tecconcursos.com.br/questoes/filtrar?cadernoBase=' + data.cadernoBase + (data.idPasta ? '&idPasta=' + data.idPasta : '');
+    state.tecCaderno = { url: fullUrl, cadernoBase: data.cadernoBase, idPasta: data.idPasta || '' };
+    saveState();
+    const inp = document.getElementById('tec-cadr-url-inp');
+    if (inp) inp.value = fullUrl;
+    tecCadrStatusShow('✓ Caderno #' + data.cadernoBase + (data.idPasta ? ' / pasta #' + data.idPasta : '') + ' detectado automaticamente');
+  }
 
   const card = document.getElementById('cron-investida-card');
   if (!card) return;
@@ -17028,7 +17040,11 @@ window.addEventListener('message', function(e){
         'var assunto=assM?assM[1].replace(/\\s*[×\\xd7].*$/,"").trim():"";' +
         // nome do caderno: tenta título da página
         'var caderno=document.title.replace(/\\s*[\\|·\\-]\\s*TecConcursos.*$/i,"").trim()||materia;' +
-        'send("session_info",{total:total,materia:materia,assunto:assunto,caderno:caderno});' +
+        // extrai cadernoBase e idPasta da URL atual
+        'var _sp=new URLSearchParams(window.location.search);' +
+        'var cadernoBase=_sp.get("cadernoBase")||"";' +
+        'var idPasta=_sp.get("idPasta")||"";' +
+        'send("session_info",{total:total,materia:materia,assunto:assunto,caderno:caderno,cadernoBase:cadernoBase,idPasta:idPasta});' +
       '}' +
       // extrai info da questão atual do DOM do TecConcursos
       'function getInfo(){' +
