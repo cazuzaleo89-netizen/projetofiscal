@@ -13278,7 +13278,10 @@ function wrongHistoryRender(){
           ${!alreadyInFila
             ? `<button onclick="whAddToFila('${q.qid}')" style="background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);border-radius:6px;padding:2px 7px;cursor:pointer;font-size:.58rem;color:var(--gold);font-weight:700;font-family:var(--ff);white-space:nowrap;">+ Fila</button>`
             : `<span style="font-size:.54rem;color:var(--green);font-weight:700;">✓ Na fila</span>`}
-          <button onclick="whClearOne('${q.qid}')" style="background:none;border:1px solid rgba(248,113,113,.15);border-radius:6px;padding:2px 5px;cursor:pointer;font-size:.58rem;color:var(--red);">✕</button>
+          <div style="display:flex;gap:.2rem;">
+            <button onclick="tecCadrSearch('${(q.materia||'').replace(/'/g,'&apos;')}','${(q.assunto||'').replace(/'/g,'&apos;')}','${(q.desc||'').replace(/'/g,'&apos;').replace(/"/g,'&quot;').slice(0,300)}')" title="Buscar questões similares no TEC (assunto + palavras-chave do enunciado, somente Não Respondidas)" style="background:none;border:1px solid rgba(34,211,238,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.58rem;color:#22d3ee;">🔍</button>
+            <button onclick="whClearOne('${q.qid}')" style="background:none;border:1px solid rgba(248,113,113,.15);border-radius:6px;padding:2px 5px;cursor:pointer;font-size:.58rem;color:var(--red);">✕</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -13818,7 +13821,7 @@ function frRender() {
         <div style="display:flex;gap:.25rem;">
           ${!isDone ? `<button onclick="frMarkDone('${item.id}')" title="Marcar como revisada" style="background:none;border:1px solid rgba(52,211,153,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--green);">✓</button>` : ''}
           <button onclick="cadrOpenModal('${item.id}')" title="Salvar no caderno" style="background:none;border:1px solid rgba(139,92,246,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#a78bfa;">📚</button>
-          <button onclick="tecCadrSearch('${(item.materia||item.discName||'').replace(/'/g,'&apos;')}','${(item.assunto||'').replace(/'/g,'&apos;')}')" title="Buscar similares no TecConcursos" style="background:none;border:1px solid rgba(34,211,238,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#22d3ee;">🔍</button>
+          <button onclick="tecCadrSearch('${(item.materia||item.discName||'').replace(/'/g,'&apos;')}','${(item.assunto||'').replace(/'/g,'&apos;')}','${(item.desc||'').replace(/'/g,'&apos;').replace(/"/g,'&quot;').slice(0,300)}')" title="Buscar similares no TecConcursos (assunto + palavras-chave do enunciado)" style="background:none;border:1px solid rgba(34,211,238,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#22d3ee;">🔍</button>
           <button onclick="frRemove('${item.id}')" title="Remover" style="background:none;border:1px solid rgba(248,113,113,.25);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--red);">✕</button>
         </div>
       </div>`;
@@ -14301,15 +14304,38 @@ function tecCadrLoadSaved() {
   }
 }
 
-function tecCadrSearch(materia, assunto) {
+// Extrai palavras-chave do enunciado/descrição da questão
+// Remove stopwords PT, palavras curtas e pega os termos mais distintivos
+function tecExtractKeywords(text) {
+  if (!text) return '';
+  const stop = new Set(['para','pelo','pela','pelos','pelas','pela','sobre','entre','desde','contra','perante','onde','quando','quanto','quanta','quantos','quantas','quem','como','porque','que','dos','das','uma','umas','uns','aos','seu','sua','seus','suas','este','esta','esse','essa','isso','isto','esses','essas','estes','estas','aquele','aquela','aqueles','aquelas','aquilo','meu','minha','meus','minhas','seria','sera','será','foi','são','tem','tinha','tinham','tive','teve','tiveram','ser','estar','está','estão','estava','estavam','tenho','temos','possui','possuem','deve','devem','pode','podem','poderia','poderiam','assim','também','tambem','ainda','apenas','somente','muito','muita','muitos','muitas','pouco','pouca','poucos','poucas','sempre','nunca','jamais','antes','depois','agora','hoje','ontem','amanha','amanhã','aqui','ali','lá','la','cada','toda','todo','todos','todas','outro','outra','outros','outras','mesmo','mesma','mesmos','mesmas','enquanto','porém','porem','contudo','todavia','entretanto','logo','então','entao','portanto','consoante','conforme','segundo','exceto','salvo','não','nao','sim','nem','ou','mas','mais','menos','foram','faz','fez','fazem','fazia','fica','ficam','sendo','tendo','sido','feito','aquele','tudo','nada','algum','alguma','alguns','algumas','nenhum','nenhuma','outros','assinale','correta','incorreta','correto','incorreto','alternativa','alternativas','julgue','seguinte','seguintes','item','itens','enunciado','questão','questao','letra','marque','indique','considere','considerando','observe','analise','assinale-se','julgue-se','acerca','quanto','sobre','referente','relativos','relativa','relativo','relativas','seguinte','seguintes','seguir','abaixo','acima','assertiva','assertivas','proposição','proposições','proposicao','proposicoes','afirmação','afirmações','afirmacao','afirmacoes']);
+  const words = String(text)
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'') // remove acentos
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 5 && !stop.has(w) && !/^\d+$/.test(w));
+  // Remove duplicatas mantendo ordem; limita a 5 palavras mais distintivas
+  const seen = new Set();
+  const unique = [];
+  for (const w of words) { if(!seen.has(w)){seen.add(w);unique.push(w);} if(unique.length>=5)break; }
+  return unique.join(' ');
+}
+
+function tecCadrSearch(materia, assunto, desc) {
   tecCadrEnsure();
-  // Salva materia/assunto + flag para busca no banco geral (não respondidas)
-  const terms = { materia: materia || '', assunto: assunto || '', naoRespondidas: true };
+  const keywords = tecExtractKeywords(desc || '');
+  const terms = {
+    materia: materia || '',
+    assunto: assunto || '',
+    keywords: keywords,
+    naoRespondidas: true
+  };
   try { localStorage.setItem('pfTecSearch', JSON.stringify(terms)); } catch(e) {}
-  // Sempre abre o banco GERAL de questões (não o caderno pessoal)
   window.open('https://www.tecconcursos.com.br/questoes/filtrar', '_blank');
   const tema = assunto || materia || '';
-  flash('🔍 Banco TEC aberto! Clique no bookmarklet ⚡ Monitor para filtrar por "' + tema + '" (somente Não Respondidas).', '#22d3ee', 8000);
+  const kwLabel = keywords ? ' + palavras-chave: "' + keywords + '"' : '';
+  flash('🔍 Banco TEC aberto! Clique no ⚡ Monitor para filtrar: "' + tema + '"' + kwLabel + ' (Não Respondidas).', '#22d3ee', 9000);
 }
 
 // ═══════════════════════════════════════════════
@@ -17489,7 +17515,7 @@ window.addEventListener('message', function(e){
         'applyTecFilter(_pfs);return;' +
       '}' +
       'function applyTecFilter(s){' +
-        'var mat=s.materia||””,ass=s.assunto||””,naoResp=!!s.naoRespondidas;' +
+        'var mat=s.materia||””,ass=s.assunto||””,naoResp=!!s.naoRespondidas,kw=s.keywords||””;' +
         // Badge de status
         'var b=document.createElement(“div”);' +
         'b.style.cssText=”position:fixed;bottom:14px;right:14px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:360px;line-height:1.5;”;' +
@@ -17542,13 +17568,49 @@ window.addEventListener('message', function(e){
               'var assEl=findEl(ass);' +
               'if(assEl){' +
                 'assEl.click();' +
-                'b.innerHTML=”✅ Filtrado: <em>”+ass+”</em>”+(naoResp?” · Não Respondidas”:””);' +
+                'b.innerHTML=”✓ Assunto: <em>”+ass+”</em>”+(naoResp?” · Não Respondidas”:””)+(kw?”<br>🔍 Inserindo palavras-chave...”:””);' +
               '}else{' +
-                'b.innerHTML=”✅ Matéria <em>”+mat+”</em> filtrada.<br>Assunto <em>”+ass+”</em> não encontrado — selecione manualmente.”;' +
+                'b.innerHTML=”⚠ Assunto <em>”+ass+”</em> não encontrado — selecione manualmente.”+(kw?”<br>🔍 Inserindo palavras-chave...”:””);' +
               '}' +
-              'setTimeout(function(){b.remove();},6000);' +
+              'setTimeout(applyKeywords,900);' +
             '},800);' +
           '},700);' +
+        '}' +
+        // Passo 4: insere palavras-chave do enunciado no campo de busca
+        'function applyKeywords(){' +
+          'if(!kw){b.innerHTML=”✅ Filtros aplicados!”+(naoResp?”<br>(Não Respondidas)”:””);setTimeout(function(){b.remove();},5000);return;}' +
+          // procura inputs de busca/pesquisa visíveis
+          'var inputs=Array.from(document.querySelectorAll(“input[type=text],input[type=search],input:not([type])”));' +
+          'var target=null;' +
+          'for(var i=0;i<inputs.length;i++){' +
+            'var el=inputs[i];if(el.offsetParent===null)continue;' +
+            'var ph=(el.placeholder||””).toLowerCase();' +
+            'var nm=(el.name||””).toLowerCase();' +
+            'var id=(el.id||””).toLowerCase();' +
+            'if(ph.indexOf(“pesquis”)>-1||ph.indexOf(“busc”)>-1||ph.indexOf(“palavr”)>-1||nm.indexOf(“pesquis”)>-1||nm.indexOf(“busc”)>-1||id.indexOf(“pesquis”)>-1||id.indexOf(“busc”)>-1||id.indexOf(“search”)>-1){target=el;break;}' +
+          '}' +
+          'if(!target){' +
+            // tenta clicar em “Pesquisa” / “Palavras-chave” no sidebar primeiro
+            'var pesqSec=findEl(“Palavras-chave”)||findEl(“Palavras chave”)||findEl(“Pesquisa”)||findEl(“Busca”);' +
+            'if(pesqSec){pesqSec.click();' +
+              'setTimeout(function(){' +
+                'var inputs2=Array.from(document.querySelectorAll(“input[type=text],input[type=search],input:not([type])”));' +
+                'for(var j=0;j<inputs2.length;j++){if(inputs2[j].offsetParent!==null){target=inputs2[j];break;}}' +
+                'if(target){fillAndSubmit(target);}else{b.innerHTML=”✅ Filtros aplicados.<br>Cole no campo de pesquisa: <strong>”+kw+”</strong>”;setTimeout(function(){b.remove();},9000);}' +
+              '},700);return;' +
+            '}' +
+            'b.innerHTML=”✅ Filtros aplicados.<br>Cole nas palavras-chave: <strong>”+kw+”</strong>”;setTimeout(function(){b.remove();},9000);return;' +
+          '}' +
+          'fillAndSubmit(target);' +
+        '}' +
+        'function fillAndSubmit(el){' +
+          'var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,”value”).set;' +
+          'setter.call(el,kw);' +
+          'el.dispatchEvent(new Event(“input”,{bubbles:true}));' +
+          'el.dispatchEvent(new Event(“change”,{bubbles:true}));' +
+          'el.focus();' +
+          'b.innerHTML=”✅ Palavras-chave: <strong>”+kw+”</strong><br>Pressione Enter ou clique em Aplicar Filtros.”;' +
+          'setTimeout(function(){b.remove();},9000);' +
         '}' +
         'applyNaoRespondidas(applyMateria);' +
       '}' +
