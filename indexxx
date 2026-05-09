@@ -17045,6 +17045,52 @@ window.addEventListener('message', function(e){
       }
     }
 
+    // Importação passiva: questão navegada no TEC com histórico de erros prévios
+    if(r === 'wrong_import' && e.data.qid){
+      var qImp = e.data.qid;
+      var impErr = parseInt(e.data.myErrors) || 0;
+      if(impErr <= 0) return;
+      whEnsure();
+      var existing = state.wrongHistory[qImp];
+      if(existing){
+        if(impErr > (existing.erros || 0)){
+          existing.erros    = impErr;
+          existing.myErrors = Math.max(existing.myErrors||0, impErr);
+          existing.myTotal  = Math.max(existing.myTotal||0, parseInt(e.data.myTotal)||0);
+          var filaImp = (state.filaRevisao||[]).find(function(q){ return q.qid===qImp || q.link===(existing.url||''); });
+          if(filaImp){ filaImp.erros=existing.erros; filaImp.reincidente=existing.erros>1; if(existing.erros>1)filaImp.prioridade='alta'; }
+          saveState(); wrongHistoryRender(); wrongHistoryUpdateBadge();
+          try{ frRender(); }catch(x){}
+        }
+      } else {
+        var impUrl = e.data.url || ('https://www.tecconcursos.com.br/questoes/'+qImp);
+        var impDesc = e.data.desc || ('Questão #'+qImp);
+        state.wrongHistory[qImp] = {
+          qid: qImp, url: impUrl, desc: impDesc,
+          materia: e.data.materia||'', assunto: e.data.assunto||'',
+          erros: impErr, myErrors: impErr,
+          myTotal: parseInt(e.data.myTotal)||0, datas: [], importado: true
+        };
+        if(impErr >= 2){
+          frEnsure();
+          var alreadyF = (state.filaRevisao||[]).some(function(q){ return q.qid===qImp; });
+          if(!alreadyF){
+            state.filaRevisao.unshift({
+              qid:qImp, link:impUrl, desc:impDesc,
+              materia:e.data.materia||'', assunto:e.data.assunto||'',
+              erros:impErr, reincidente:true, prioridade:'alta',
+              status:'waiting', data:new Date().toISOString(), importado:true
+            });
+            try{ frUpdateNavBadge(); }catch(x){}
+          }
+        }
+        saveState(); wrongHistoryRender(); wrongHistoryUpdateBadge();
+        try{ frRender(); }catch(x){}
+        flash('📥 TEC: histórico importado — Q#'+qImp+' ('+impErr+'× erro)', '#f59e0b', 4000);
+      }
+      return;
+    }
+
     // Correção tardia: histórico do TEC carregou após o wrong inicial
     if(r === 'wrong_update' && e.data.url){
       var qId2  = e.data.qid || (e.data.url||'').replace(/.*\//,'');
@@ -17202,7 +17248,7 @@ window.addEventListener('message', function(e){
       'var _pfw=null;' +
       'if(window.opener&&!window.opener.closed){_pfw=window.opener;}' +
       'else{try{_pfw=window.open("","_pfPanel");}catch(x){}}' +
-      'var A=0,E=0;' +
+      'var A=0,E=0,_lastUrl="";' +
       'function parse(){' +
         'var tx=document.body.innerText||"";' +
         'var m=tx.match(/(\\d+)\\s+Acertos?\\s+e\\s+(\\d+)\\s+Erros?/i);' +
@@ -17270,6 +17316,27 @@ window.addEventListener('message', function(e){
         'else{var myErrArr=tx.match(/\\bErrou\\b/gi);info.myErrors=myErrArr?myErrArr.length:0;}' +
         'return info;' +
       '}' +
+      // Varre "Meu Desempenho" da questão atual e importa histórico de erros
+      'function scanHistory(){' +
+        'var tx=document.body.innerText||"";' +
+        // Só executa em páginas de questão individual
+        'var urlPM=window.location.pathname.match(/\\/questoes\\/(\\d{5,9})(?:\\/|$)/);' +
+        'if(!urlPM)return;' +
+        // Total de resoluções do usuário nesta questão
+        'var myResM=tx.match(/Total de resolu[\\u00e7c][\\u00f5o]es[:\\s]+(\\d+)/i);' +
+        'var myTotal=myResM?parseInt(myResM[1]):0;' +
+        // Conta ocorrências de "Errou" no histórico pessoal (bullet list)
+        'var myErrArr=tx.match(/\\bErrou\\b/gi);' +
+        'var myErrors=myErrArr?myErrArr.length:0;' +
+        // Padrão numérico como fallback: "X erros", "Errou X"
+        'var myErrNumM=tx.match(/(\\d+)\\s*(?:erros?\\b|[x×]\\s*errou)/i)||tx.match(/errou[\\s:]+(\\d+)/i);' +
+        'if(myErrNumM){var ne=parseInt(myErrNumM[1]);if(ne>myErrors)myErrors=ne;}' +
+        'if(myErrors<=0)return;' +
+        'var qi=getInfo();' +
+        'if(!qi.qid)return;' +
+        'qi.myErrors=myErrors;qi.myTotal=myTotal;' +
+        'send("wrong_import",qi);' +
+      '}' +
       // usa referência já capturada — sem window.open aqui dentro do MutationObserver
       'function send(r,qi){' +
         'var msg={type:"TEC_QUESTION",result:r};' +
@@ -17279,6 +17346,8 @@ window.addEventListener('message', function(e){
         '}return false;' +
       '}' +
       'function check(){' +
+        // Detecta navegação para nova questão → importa histórico após 1,2s (tempo para DOM carregar)
+        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;setTimeout(scanHistory,1200);}' +
         'var s=parse();if(!s)return;' +
         'var da=s.a-A,de=s.e-E;' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
@@ -17313,7 +17382,7 @@ window.addEventListener('message', function(e){
       'obs.observe(document.body,{childList:true,subtree:true,characterData:true});' +
       // badge — verde se conectou, laranja se não encontrou o painel
       'var connected=send("ping",null);' +
-      'if(connected) sendSession();' +
+      'if(connected){sendSession();_lastUrl=window.location.href;setTimeout(scanHistory,1500);}' +
       'var el=document.createElement("div");' +
       'el.id="_pfBadge";' +
       'el.style.cssText="position:fixed;bottom:12px;right:12px;color:#fff;padding:8px 15px;border-radius:10px;font-size:13px;font-weight:700;z-index:2147483647;cursor:pointer;box-shadow:0 2px 16px rgba(0,0,0,.5);font-family:sans-serif;user-select:none;letter-spacing:.3px;transition:background .3s;";' +
