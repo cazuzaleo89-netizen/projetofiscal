@@ -3117,7 +3117,7 @@ select.inp{appearance:none;cursor:pointer;}
           <div style="width:22px;height:22px;background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(99,102,241,.15));border:1px solid rgba(34,211,238,.25);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;">🔍</div>
           <div class="slabel" style="margin:0;">Caderno TecConcursos</div>
         </div>
-        <div style="font-size:.6rem;color:var(--muted);margin-bottom:.55rem;line-height:1.4;">Cole a URL do filtro do seu caderno no TEC. O botão 🔍 em cada item da fila abrirá o TEC já filtrado pelo assunto da questão.</div>
+        <div style="font-size:.6rem;color:var(--muted);margin-bottom:.55rem;line-height:1.4;">URL do seu caderno TEC (usado pelo bookmarklet ⚡ Monitor). O botão 🔍 em Q.Problemáticas abre o <strong style="color:#22d3ee">banco geral de questões</strong> filtrado pelo assunto + <strong style="color:#34d399">Não Respondidas</strong> — para praticar questões novas do mesmo tema.</div>
         <div style="display:flex;gap:.4rem;">
           <input id="tec-cadr-url-inp" type="url"
             placeholder="tecconcursos.com.br/questoes/filtrar?cadernoBase=..."
@@ -14303,20 +14303,13 @@ function tecCadrLoadSaved() {
 
 function tecCadrSearch(materia, assunto) {
   tecCadrEnsure();
-  // Salva termos no localStorage para o bookmarklet ler
-  const terms = { materia: materia || '', assunto: assunto || '' };
+  // Salva materia/assunto + flag para busca no banco geral (não respondidas)
+  const terms = { materia: materia || '', assunto: assunto || '', naoRespondidas: true };
   try { localStorage.setItem('pfTecSearch', JSON.stringify(terms)); } catch(e) {}
-  if (!state.tecCaderno.cadernoBase) {
-    // Sem caderno configurado: abre TecConcursos genérico para o bookmarklet aplicar o filtro
-    window.open('https://www.tecconcursos.com.br/questoes', '_blank');
-    flash('🔍 TEC aberto! Navegue até seu caderno e clique no bookmarklet ⚡ Monitor para filtrar por "' + (assunto || materia || '') + '".', '#f0b429', 7000);
-    return;
-  }
-  // Monta URL do caderno
-  let url = 'https://www.tecconcursos.com.br/questoes/filtrar?cadernoBase=' + state.tecCaderno.cadernoBase;
-  if (state.tecCaderno.idPasta) url += '&idPasta=' + state.tecCaderno.idPasta;
-  window.open(url, '_blank');
-  flash('🔍 TecConcursos aberto! Clique no bookmarklet ⚡ Monitor para filtrar por "' + (assunto || materia || '') + '".', '#22d3ee', 7000);
+  // Sempre abre o banco GERAL de questões (não o caderno pessoal)
+  window.open('https://www.tecconcursos.com.br/questoes/filtrar', '_blank');
+  const tema = assunto || materia || '';
+  flash('🔍 Banco TEC aberto! Clique no bookmarklet ⚡ Monitor para filtrar por "' + tema + '" (somente Não Respondidas).', '#22d3ee', 8000);
 }
 
 // ═══════════════════════════════════════════════
@@ -17496,24 +17489,23 @@ window.addEventListener('message', function(e){
         'applyTecFilter(_pfs);return;' +
       '}' +
       'function applyTecFilter(s){' +
-        'var mat=s.materia||"",ass=s.assunto||"";' +
+        'var mat=s.materia||””,ass=s.assunto||””,naoResp=!!s.naoRespondidas;' +
         // Badge de status
-        'var b=document.createElement("div");' +
-        'b.style.cssText="position:fixed;bottom:14px;right:14px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:340px;line-height:1.4;";' +
-        'b.textContent="🔍 Aplicando filtro...";' +
+        'var b=document.createElement(“div”);' +
+        'b.style.cssText=”position:fixed;bottom:14px;right:14px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:360px;line-height:1.5;”;' +
+        'b.innerHTML=”🔍 Aplicando filtro...”;' +
         'document.body.appendChild(b);' +
-        // Função: acha elemento visível que contenha o texto (leaf preferido)
+        // Função: acha elemento visível pelo texto exato, fallback contém
         'function findEl(text){' +
           'var t=text.trim().toLowerCase();' +
           'var best=null,bestLen=9999;' +
-          'Array.from(document.querySelectorAll("li,button,a,span,div,td")).forEach(function(el){' +
-            'if(el.offsetParent===null)return;' +  // oculto
+          'Array.from(document.querySelectorAll(“li,button,a,span,div,td,label,h3,h4”)).forEach(function(el){' +
+            'if(el.offsetParent===null)return;' +
             'var tx=el.textContent.trim().toLowerCase();' +
             'if(tx===t&&tx.length<bestLen){best=el;bestLen=tx.length;}' +
           '});' +
-          // fallback: contains
           'if(!best){' +
-            'Array.from(document.querySelectorAll("li,button,a,span,div,td")).forEach(function(el){' +
+            'Array.from(document.querySelectorAll(“li,button,a,span,div,td,label,h3,h4”)).forEach(function(el){' +
               'if(el.offsetParent===null)return;' +
               'var tx=el.textContent.trim().toLowerCase();' +
               'if(tx.indexOf(t)>-1&&tx.length<bestLen){best=el;bestLen=tx.length;}' +
@@ -17521,31 +17513,44 @@ window.addEventListener('message', function(e){
           '}' +
           'return best;' +
         '}' +
-        // Passo 1: clicar em "Matéria e assunto" no sidebar
-        'var sideEl=findEl("Matéria e assunto")||findEl("Materia e assunto")||findEl("Matéria");' +
-        'if(!sideEl){b.textContent="⚠ Não foi possível encontrar o filtro de matéria. Está na página de filtros do TecConcursos?";setTimeout(function(){b.remove();},5000);return;}' +
-        'sideEl.click();' +
-        'b.textContent="🔍 Matéria e assunto: buscando “"+mat+"”...";' +
-        'setTimeout(function(){' +
-          // Passo 2: clicar na matéria na lista central
-          'if(!mat){b.textContent="✅ Filtro de matéria aberto.";setTimeout(function(){b.remove();},3000);return;}' +
-          'var matEl=findEl(mat);' +
-          'if(!matEl){b.textContent="⚠ Matéria “"+mat+"” não encontrada. Selecione manualmente.";setTimeout(function(){b.remove();},5000);return;}' +
-          'matEl.click();' +
-          'b.textContent="✓ Matéria selecionada. Buscando assunto “"+ass+"”...";' +
+        // Passo 0 (opcional): filtrar “Não respondidas” primeiro
+        'function applyNaoRespondidas(cb){' +
+          'if(!naoResp){cb();return;}' +
+          'var sitEl=findEl(“Situação”)||findEl(“Situacao”)||findEl(“Resolvidas”)||findEl(“Respondidas”);' +
+          'if(sitEl){sitEl.click();}' +
           'setTimeout(function(){' +
-            // Passo 3: clicar no assunto
-            'if(!ass){b.textContent="✅ Matéria filtrada!";setTimeout(function(){b.remove();},3000);return;}' +
-            'var assEl=findEl(ass);' +
-            'if(assEl){' +
-              'assEl.click();' +
-              'b.textContent="✅ Filtro aplicado: "+ass;' +
-            '}else{' +
-              'b.textContent="✅ Matéria filtrada. Assunto “"+ass+"” não encontrado — selecione manualmente.";' +
-            '}' +
-            'setTimeout(function(){b.remove();},5000);' +
-          '},800);' +
-        '},700);' +
+            'var nrEl=findEl(“Não respondidas”)||findEl(“Nao respondidas”)||findEl(“Não resolvidas”)||findEl(“Nao resolvidas”)||findEl(“Não respondida”);' +
+            'if(nrEl){nrEl.click();b.innerHTML=”✓ Não Respondidas ativado<br>🔍 Buscando matéria...”;}' +
+            'else{b.innerHTML=”⚠ Filtro Não Respondidas não encontrado<br>🔍 Buscando matéria...”;}' +
+            'setTimeout(cb,600);' +
+          '},700);' +
+        '}' +
+        // Passo 1: clicar em “Matéria e assunto” no sidebar
+        'function applyMateria(){' +
+          'var sideEl=findEl(“Matéria e assunto”)||findEl(“Materia e assunto”)||findEl(“Matéria”)||findEl(“Materia”);' +
+          'if(!sideEl){b.innerHTML=”⚠ Filtro de matéria não encontrado.<br>Está na página de filtros do TecConcursos?”;setTimeout(function(){b.remove();},6000);return;}' +
+          'sideEl.click();' +
+          'b.innerHTML=”🔍 Buscando matéria: <em>”+mat+”</em>...”;' +
+          'setTimeout(function(){' +
+            'if(!mat){b.innerHTML=”✅ Filtros aplicados!”;setTimeout(function(){b.remove();},3000);return;}' +
+            'var matEl=findEl(mat);' +
+            'if(!matEl){b.innerHTML=”⚠ Matéria <em>”+mat+”</em> não encontrada.<br>Selecione manualmente.”;setTimeout(function(){b.remove();},6000);return;}' +
+            'matEl.click();' +
+            'b.innerHTML=”✓ Matéria: <em>”+mat+”</em><br>🔍 Buscando assunto: <em>”+ass+”</em>...”;' +
+            'setTimeout(function(){' +
+              'if(!ass){b.innerHTML=”✅ Matéria <em>”+mat+”</em> filtrada!”;setTimeout(function(){b.remove();},4000);return;}' +
+              'var assEl=findEl(ass);' +
+              'if(assEl){' +
+                'assEl.click();' +
+                'b.innerHTML=”✅ Filtrado: <em>”+ass+”</em>”+(naoResp?” · Não Respondidas”:””);' +
+              '}else{' +
+                'b.innerHTML=”✅ Matéria <em>”+mat+”</em> filtrada.<br>Assunto <em>”+ass+”</em> não encontrado — selecione manualmente.”;' +
+              '}' +
+              'setTimeout(function(){b.remove();},6000);' +
+            '},800);' +
+          '},700);' +
+        '}' +
+        'applyNaoRespondidas(applyMateria);' +
       '}' +
       // ── Monitor normal ──
       'if(window._pfM){' +
