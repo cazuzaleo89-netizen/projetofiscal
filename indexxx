@@ -930,6 +930,37 @@ select.inp{appearance:none;cursor:pointer;}
 #dash-metas-list::-webkit-scrollbar{width:2px;}
 #dash-metas-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 
+/* ── SCORE DE PRONTIDÃO ──────────────────────── */
+.readiness-ring{position:relative;width:80px;height:80px;flex-shrink:0;}
+.readiness-ring svg{transform:rotate(-90deg);}
+.readiness-ring .ring-bg{fill:none;stroke:var(--surf3);stroke-width:7;}
+.readiness-ring .ring-fill{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.4,0,.2,1);}
+.readiness-score-val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
+.readiness-score-num{font-family:var(--mono);font-size:1.2rem;font-weight:800;}
+.readiness-score-pct{font-size:.42rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted2);}
+
+/* ── DIAGNÓSTICO ITEMS ───────────────────────── */
+.diag-item{display:flex;align-items:center;gap:.5rem;padding:.42rem .55rem;border-radius:var(--r2);border:1px solid var(--border);background:var(--surf2);margin-bottom:.3rem;transition:border-color .15s;cursor:default;}
+.diag-item:hover{border-color:var(--border2);}
+.diag-item-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.diag-item-name{flex:1;font-size:.71rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.diag-item-rate{font-family:var(--mono);font-size:.72rem;font-weight:700;flex-shrink:0;}
+.diag-item-bar{height:3px;border-radius:2px;background:var(--surf3);margin-top:3px;overflow:hidden;}
+.diag-item-bar-fill{height:100%;border-radius:2px;transition:width .5s;}
+.diag-badge{display:inline-flex;align-items:center;gap:3px;font-size:.55rem;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.5px;}
+.diag-badge.red{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25);}
+.diag-badge.gold{background:rgba(240,165,0,.12);color:var(--gold);border:1px solid rgba(240,165,0,.25);}
+.diag-badge.green{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25);}
+.diag-badge.purple{background:rgba(129,140,248,.12);color:var(--purple);border:1px solid rgba(129,140,248,.25);}
+
+/* ── PLANO DO DIA ────────────────────────────── */
+.plan-item{display:flex;align-items:center;gap:.5rem;padding:.4rem .55rem;border-radius:var(--r2);border:1px solid var(--border);background:var(--surf2);cursor:pointer;transition:all .15s;margin-bottom:.28rem;}
+.plan-item:hover{border-color:var(--border2);background:var(--surf3);}
+.plan-item-num{font-family:var(--mono);font-size:.65rem;font-weight:800;width:16px;text-align:center;flex-shrink:0;}
+.plan-item-name{flex:1;font-size:.72rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.plan-item-why{font-size:.58rem;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.plan-item-time{font-family:var(--mono);font-size:.65rem;font-weight:700;flex-shrink:0;}
+
 /* ══ ESTATÍSTICAS ══════════════════════════════ */
 .est-chip{
   font-size:.68rem;font-weight:700;padding:.3rem .75rem;border-radius:20px;
@@ -2130,6 +2161,11 @@ select.inp{appearance:none;cursor:pointer;}
           <div style="font-family:var(--mono);font-size:1.4rem;font-weight:700;color:var(--purple);" id="dash-streak-quick">0🔥</div>
           <div style="font-size:.5rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Sequência</div>
         </div>
+        <div style="width:1px;height:30px;background:var(--border);"></div>
+        <div style="text-align:center;">
+          <div style="font-family:var(--mono);font-size:1.4rem;font-weight:700;color:var(--green);" id="dash-acerto-quick">—</div>
+          <div style="font-size:.5rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Acerto</div>
+        </div>
       </div>
     </div>
     <!-- Mini activity chart (last 7 days) -->
@@ -2252,10 +2288,47 @@ select.inp{appearance:none;cursor:pointer;}
           <div class="empty" style="padding:.5rem;font-size:.68rem;">Configure o Peso do Edital na aba <strong>Disciplinas</strong>.</div>
         </div>
       </div>
+      <!-- Score de Prontidão + Diagnóstico -->
       <div class="card" style="margin-bottom:1.1rem;">
-        <div class="slabel">Desempenho por Disciplina</div>
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.9rem;">
+          <div class="readiness-ring" id="readiness-ring-wrap">
+            <svg viewBox="0 0 80 80" width="80" height="80">
+              <circle class="ring-bg" cx="40" cy="40" r="33"/>
+              <circle class="ring-fill" id="readiness-ring-fill" cx="40" cy="40" r="33"
+                stroke-dasharray="207.3" stroke-dashoffset="207.3" stroke="var(--cyan)"/>
+            </svg>
+            <div class="readiness-score-val">
+              <span class="readiness-score-num" id="readiness-score-num" style="color:var(--cyan)">—</span>
+              <span class="readiness-score-pct">score</span>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="slabel" style="margin:0 0 .25rem;">Prontidão</div>
+            <div style="font-size:.68rem;color:var(--muted2);line-height:1.5;" id="readiness-msg">Registre sessões e questões para calcular.</div>
+            <div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:.3rem;" id="readiness-badges"></div>
+          </div>
+        </div>
         <div id="d-perf-list"><div class="empty">Registre questões para ver o desempenho 🎯</div></div>
       </div>
+
+      <!-- Diagnóstico TEC -->
+      <div class="card" style="margin-bottom:1.1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <div class="slabel" style="margin:0;">⚠ Pontos Críticos TEC</div>
+          <button class="btn btn-ghost" style="font-size:.6rem;padding:.22rem .5rem;" onclick="goPage('problemáticas',document.querySelector('.nav-item[onclick*=problem]'))">Ver todos →</button>
+        </div>
+        <div id="dash-tec-criticos"><div class="empty" style="font-size:.7rem;">Ative o Monitor TEC para importar histórico.</div></div>
+      </div>
+
+      <!-- Plano Inteligente do Dia -->
+      <div class="card" style="margin-bottom:1.1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+          <div class="slabel" style="margin:0;">📋 Plano do Dia</div>
+          <span style="font-size:.58rem;color:var(--muted2);" id="dash-plan-subtitle">Baseado no edital + desempenho</span>
+        </div>
+        <div id="dash-plano-list"><div class="empty" style="font-size:.7rem;">Configure disciplinas para gerar o plano.</div></div>
+      </div>
+
       <div class="card" style="margin-bottom:1.1rem;">
         <div class="slabel">Questões</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
@@ -2874,6 +2947,7 @@ select.inp{appearance:none;cursor:pointer;}
           <div>
             <label class="flabel">Ordenar</label>
             <select class="inp" id="wh-sort-sel" style="font-size:.75rem;" onchange="wrongHistoryRender()">
+              <option value="prioridade">⚡ Prioridade</option>
               <option value="erros">Mais erros</option>
               <option value="recent">Mais recente</option>
               <option value="materia">Matéria</option>
@@ -5055,6 +5129,10 @@ function updateStats(){
   try{ renderDashEdital(); }catch(e){}
   // Dashboard hero
   try{ dashUpdateHero(todS, wkS); }catch(e){}
+  // Diagnóstico + Plano
+  try{ dashDiagnostic(); }catch(e){}
+  try{ dashPlanoDia(); }catch(e){}
+  try{ dashTecCriticos(); }catch(e){}
 }
 
 function dashUpdateHero(todS, wkS){
@@ -5064,21 +5142,42 @@ function dashUpdateHero(todS, wkS){
   const el=id=>document.getElementById(id);
   if(el('dash-greeting')) el('dash-greeting').textContent=greetings;
 
-  // Mensagem motivacional dinâmica baseada no progresso
-  const motivations = [
-    'Cada hora de estudo te aproxima da aprovação.',
-    'Consistência vence talento quando talento não é consistente.',
-    'O segredo não é ter tempo, é fazer o tempo render.',
-    'Disciplina é o que te leva quando a motivação não aparece.',
-    'Foco no processo. O resultado é consequência.',
-  ];
-  const dayOfYear=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/86400000);
-  if(el('dash-motivation')) el('dash-motivation').textContent=motivations[dayOfYear%motivations.length];
+  // Mensagem motivacional inteligente — baseia-se no estado atual
+  const allQ2=(state.questionSessions||[]);
+  const totQ2=allQ2.reduce((a,s)=>a+s.total,0);
+  const corQ2=allQ2.reduce((a,s)=>a+s.correct,0);
+  const rate2=totQ2>0?corQ2/totQ2:null;
+  const reincTotal2=Object.values(state.wrongHistory||{}).filter(w=>w.erros>=2).length;
+  const frDue2=(state.filaRevisao||[]).filter(f=>f.status!=='done'&&Date.now()>=(f.readyAt||f.dueAt||0)).length;
+  let motivation = '';
+  if(frDue2>0) motivation = `Você tem ${frDue2} revisão${frDue2>1?'ões':''} pendente${frDue2>1?'s':''}. Revise agora para fixar o conteúdo!`;
+  else if(reincTotal2>0) motivation = `${reincTotal2} questão${reincTotal2>1?'ões':''} com reincidência. Priorize-${reincTotal2>1?'as':'a'} hoje!`;
+  else if(rate2!==null&&rate2<0.6) motivation = `Taxa de acerto em ${Math.round(rate2*100)}%. Revise os erros e tente melhorar!`;
+  else if(rate2!==null&&rate2>=0.8) motivation = `Incrível! ${Math.round(rate2*100)}% de acerto. Mantenha o foco!`;
+  else if((state.streak||0)>=7) motivation = `${state.streak} dias seguidos! Consistência é a chave da aprovação.`;
+  else {
+    const motivations = [
+      'Cada hora de estudo te aproxima da aprovação.',
+      'Consistência vence talento quando talento não é consistente.',
+      'O segredo não é ter tempo, é fazer o tempo render.',
+      'Disciplina é o que te leva quando a motivação não aparece.',
+      'Foco no processo. O resultado é consequência.',
+      'Quem estuda com método chega mais longe do que quem estuda mais.',
+      'Seu esforço de hoje é a vantagem de amanhã na prova.',
+    ];
+    const dayOfYear=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0))/86400000);
+    motivation = motivations[dayOfYear%motivations.length];
+  }
+  if(el('dash-motivation')) el('dash-motivation').textContent=motivation;
 
   // Quick stats
   if(el('dash-today-quick')) el('dash-today-quick').textContent=formatHM(todS);
   if(el('dash-week-quick')) el('dash-week-quick').textContent=formatHM(wkS);
   if(el('dash-streak-quick')) el('dash-streak-quick').textContent=(state.streak||0)+'🔥';
+  const _allQ3=state.questionSessions||[],_tQ=_allQ3.reduce((a,s)=>a+s.total,0),_cQ=_allQ3.reduce((a,s)=>a+s.correct,0);
+  const _acerto=_tQ>0?Math.round(_cQ/_tQ*100)+'%':'—';
+  const _acertoEl=el('dash-acerto-quick');
+  if(_acertoEl){_acertoEl.textContent=_acerto;_acertoEl.style.color=_tQ>0&&_cQ/_tQ>=.7?'var(--green)':_tQ>0&&_cQ/_tQ>=.5?'var(--gold)':'var(--red)';}
 
   // Activity bars (last 7 days)
   const barsEl=el('dash-activity-bars');
@@ -5154,6 +5253,208 @@ function renderDashEdital(){
     </div>`;
   }).join('');
 }
+// ═══ DIAGNÓSTICO + PRONTIDÃO ══════════════════
+function dashDiagnostic(){
+  const ring = document.getElementById('readiness-ring-fill');
+  const num  = document.getElementById('readiness-score-num');
+  const msg  = document.getElementById('readiness-msg');
+  const badges = document.getElementById('readiness-badges');
+  const perfList = document.getElementById('d-perf-list');
+  if(!ring||!num) return;
+
+  // Calcula score por disciplina
+  const discScores = state.disciplines.map(d=>{
+    const qs = (state.questionSessions||[]).filter(s=>s.subjectId===d.id);
+    const tot = qs.reduce((a,s)=>a+s.total,0);
+    const cor = qs.reduce((a,s)=>a+s.correct,0);
+    const rate = tot>0 ? cor/tot : null;
+    const secs = (state.sessions||[]).filter(s=>s.subjectId===d.id).reduce((a,s)=>a+s.seconds,0);
+    const edW  = (state.edital&&state.edital.weights&&state.edital.weights[d.id])||0;
+    const wrongCount = Object.values(state.wrongHistory||{})
+      .filter(w=>(w.materia===d.name||w.assunto===d.name)&&w.erros>0).length;
+    const reincCount = Object.values(state.wrongHistory||{})
+      .filter(w=>(w.materia===d.name||w.assunto===d.name)&&w.erros>=2).length;
+    return {d, tot, cor, rate, secs, edW, wrongCount, reincCount};
+  }).filter(x=>x.tot>0||x.secs>3600);
+
+  // Score de Prontidão (0-100)
+  let score = 0, parts = 0;
+  const totSecs = (state.sessions||[]).reduce((a,s)=>a+s.seconds,0);
+  const allQ = state.questionSessions||[];
+  const totQ = allQ.reduce((a,s)=>a+s.total,0);
+  const corQ = allQ.reduce((a,s)=>a+s.correct,0);
+  const globalRate = totQ>0 ? corQ/totQ : null;
+
+  // Componente 1: taxa global de acerto (peso 40)
+  if(globalRate!==null){ score += globalRate*40; parts+=40; }
+  // Componente 2: alinhamento com edital (peso 30)
+  const hasWeights = state.disciplines.some(d=>(state.edital&&state.edital.weights&&state.edital.weights[d.id]||0)>0);
+  if(hasWeights&&totSecs>0){
+    let alignSum=0,alignN=0;
+    state.disciplines.forEach(d=>{
+      const w=(state.edital.weights[d.id]||0)/100;
+      if(w<0.01) return;
+      const studySecs=(state.sessions||[]).filter(s=>s.subjectId===d.id).reduce((a,s)=>a+s.seconds,0);
+      const sp=studySecs/totSecs;
+      const gap=Math.abs(sp-w);
+      alignSum+=Math.max(0,1-gap*3);alignN++;
+    });
+    if(alignN>0){score+=(alignSum/alignN)*30;parts+=30;}
+  }
+  // Componente 3: questões resolvidas (peso 20, meta 500)
+  const qProg = Math.min(1, totQ/500);
+  score += qProg*20; parts+=20;
+  // Componente 4: consistência (peso 10, meta 30 dias seguidos)
+  const strProg = Math.min(1,(state.streak||0)/30);
+  score += strProg*10; parts+=10;
+
+  const finalScore = parts>0 ? Math.round(score/parts*100) : 0;
+  const circ = 2*Math.PI*33;
+  const scoreColor = finalScore>=70?'var(--green)':finalScore>=45?'var(--gold)':'var(--red)';
+  ring.style.stroke = scoreColor;
+  ring.style.strokeDashoffset = (circ*(1-finalScore/100)).toFixed(1);
+  num.textContent = finalScore;
+  num.style.color = scoreColor;
+
+  // Mensagem
+  const msgs = [
+    [80, 'Excelente! Continue mantendo esse ritmo.'],
+    [60, 'Bom progresso. Foque nos pontos fracos.'],
+    [40, 'Em desenvolvimento. Aumente o volume de questões.'],
+    [0,  'Início da preparação. Mantenha consistência!'],
+  ];
+  msg.textContent = (msgs.find(([t])=>finalScore>=t)||msgs[msgs.length-1])[1];
+
+  // Badges de destaque
+  const bs = [];
+  if((state.streak||0)>=7) bs.push(['🔥 '+state.streak+'d','green']);
+  const reincTotal = Object.values(state.wrongHistory||{}).filter(w=>w.erros>=2).length;
+  if(reincTotal>0) bs.push([reincTotal+' reinc.','red']);
+  const frDue = (state.filaRevisao||[]).filter(f=>f.status!=='done'&&Date.now()>=(f.readyAt||0)).length;
+  if(frDue>0) bs.push([frDue+' revisão','gold']);
+  if(globalRate>=.8) bs.push([Math.round(globalRate*100)+'% acerto','green']);
+  badges.innerHTML = bs.map(([l,c])=>`<span class="diag-badge ${c}">${l}</span>`).join('');
+
+  // Lista de desempenho por disciplina
+  if(!perfList) return;
+  if(!discScores.length){perfList.innerHTML='<div class="empty">Registre questões para ver o desempenho 🎯</div>';return;}
+  const sorted = [...discScores].sort((a,b)=>(a.rate??1)-(b.rate??1));
+  perfList.innerHTML = sorted.map(x=>{
+    const rate = x.rate!==null ? Math.round(x.rate*100) : null;
+    const rateStr = rate!==null ? rate+'%' : '—';
+    const rateColor = rate===null?'var(--muted2)':rate>=70?'var(--green)':rate>=50?'var(--gold)':'var(--red)';
+    const warn = x.reincCount>0 ? `<span style="font-size:.55rem;color:var(--red);margin-left:4px;">⚠${x.reincCount}</span>` : '';
+    return `<div class="diag-item">
+      <div class="diag-item-dot" style="background:${x.d.color}"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;"><span class="diag-item-name">${x.d.name}</span>${warn}</div>
+        <div class="diag-item-bar"><div class="diag-item-bar-fill" style="width:${rate??0}%;background:${rateColor};"></div></div>
+      </div>
+      <div class="diag-item-rate" style="color:${rateColor}">${rateStr}</div>
+    </div>`;
+  }).join('');
+}
+
+function dashTecCriticos(){
+  const el = document.getElementById('dash-tec-criticos');
+  if(!el) return;
+  const wh = state.wrongHistory||{};
+  const entries = Object.entries(wh).map(([qid,w])=>({qid,...w}));
+  const criticos = entries.filter(w=>w.erros>=2)
+    .sort((a,b)=>(b.erros-a.erros)||new Date(b.lastErro||0)-new Date(a.lastErro||0))
+    .slice(0,5);
+  if(!criticos.length){
+    el.innerHTML='<div class="empty" style="font-size:.7rem;">Nenhuma reincidência registrada. Ative o Monitor TEC!</div>';
+    return;
+  }
+  el.innerHTML = criticos.map(w=>{
+    const label=(w.assunto||w.materia||'Questão #'+w.qid).substring(0,38);
+    const dtStr=w.lastErro?new Date(w.lastErro).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+    const inFila=(state.filaRevisao||[]).some(f=>f.qid===w.qid&&f.status!=='done');
+    return `<div class="diag-item" onclick="${w.url?`window.open('${w.url}','_blank')`:'void(0)'}" style="${w.url?'cursor:pointer;':''}">
+      <div style="width:22px;height:22px;border-radius:50%;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.35);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.72rem;font-weight:800;color:var(--red);flex-shrink:0;">${w.erros}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.71rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+        <div style="font-size:.57rem;color:var(--muted2);">${dtStr}${inFila?' · na fila':''}</div>
+      </div>
+      ${inFila?'<span class="diag-badge purple">fila</span>':'<button onclick="event.stopPropagation();whAddToFilaById(\''+w.qid+'\')" class="diag-badge gold" style="cursor:pointer;border:none;font-family:var(--ff);">+ fila</button>'}
+    </div>`;
+  }).join('');
+}
+
+function whAddToFilaById(qid){
+  const w=state.wrongHistory&&state.wrongHistory[qid]; if(!w) return;
+  frEnsure();
+  const already=(state.filaRevisao||[]).some(f=>(f.qid===qid)&&f.status!=='done');
+  if(already){flash('Já está na fila de revisão.','#f0b429');return;}
+  const now=Date.now();
+  const interval=w.erros>=2?15:30;
+  state.filaRevisao.unshift({id:uid(),qid,link:w.url||'',label:(w.assunto||w.materia||'Q#'+qid).substring(0,50),erros:w.erros,reincidente:w.erros>=2,prioridade:w.erros>=2?'alta':'normal',status:'waiting',addedAt:now,readyAt:now+interval*60000,interval});
+  saveState();frRender();frUpdateNavBadge();
+  flash('Adicionado à fila! Revisão em '+interval+'min.','#22d3ee',3000);
+  dashTecCriticos();
+}
+
+function dashPlanoDia(){
+  const el = document.getElementById('dash-plano-list');
+  if(!el) return;
+  if(!state.disciplines.length){el.innerHTML='<div class="empty" style="font-size:.7rem;">Cadastre disciplinas para gerar o plano.</div>';return;}
+
+  const totSecs = (state.sessions||[]).reduce((a,s)=>a+s.seconds,0);
+  const hasWeights = state.disciplines.some(d=>(state.edital&&state.edital.weights&&state.edital.weights[d.id]||0)>0);
+
+  const items = state.disciplines.map(d=>{
+    const qs = (state.questionSessions||[]).filter(s=>s.subjectId===d.id);
+    const tot = qs.reduce((a,s)=>a+s.total,0);
+    const cor = qs.reduce((a,s)=>a+s.correct,0);
+    const rate = tot>0 ? cor/tot : null;
+    const secs = (state.sessions||[]).filter(s=>s.subjectId===d.id).reduce((a,s)=>a+s.seconds,0);
+    const edW  = hasWeights ? ((state.edital&&state.edital.weights&&state.edital.weights[d.id])||0)/100 : 1/state.disciplines.length;
+    const studyPct = totSecs>0 ? secs/totSecs : 0;
+    const alignGap = edW - studyPct;
+    const reincCount = Object.values(state.wrongHistory||{})
+      .filter(w=>(w.materia===d.name||w.assunto===d.name)&&w.erros>=2).length;
+
+    // Priority score: edital gap (positive=under-studied) + low accuracy penalty + reincidências
+    let priority = alignGap*2;
+    if(rate!==null && rate<0.65) priority += (0.65-rate)*1.5;
+    if(reincCount>0) priority += reincCount*0.05;
+    if(rate===null) priority += 0.3;
+
+    // Tempo sugerido: proporcional ao edital weight, mínimo 30min
+    const goalSecs = (state.dailyGoal||4)*3600;
+    const suggested = Math.max(1800, Math.round(goalSecs*edW/600)*600);
+
+    let why = '';
+    if(alignGap>0.05) why = 'Abaixo do peso do edital';
+    else if(rate!==null&&rate<0.6) why = 'Taxa de acerto baixa ('+Math.round(rate*100)+'%)';
+    else if(reincCount>0) why = reincCount+' reincidência'+(reincCount>1?'s':'');
+    else if(rate===null) why = 'Sem questões registradas';
+    else why = 'Manutenção de desempenho';
+
+    return {d, priority, suggested, why, rate, reincCount};
+  }).sort((a,b)=>b.priority-a.priority).slice(0,4);
+
+  if(!items.length){el.innerHTML='<div class="empty" style="font-size:.7rem;">Sem dados suficientes.</div>';return;}
+
+  el.innerHTML = items.map((x,i)=>{
+    const rateColor = x.rate===null?'var(--muted2)':x.rate>=0.7?'var(--green)':x.rate>=0.5?'var(--gold)':'var(--red)';
+    const numColor = i===0?'var(--gold)':i===1?'var(--cyan)':'var(--muted3)';
+    const mins = Math.round(x.suggested/60);
+    const timeStr = mins>=60?(Math.floor(mins/60)+'h'+(mins%60?String(mins%60).padStart(2,'0')+'m':'')):(mins+'min');
+    return `<div class="plan-item" onclick="goPage('cronometro',document.querySelector('.nav-item[onclick*=cronometro]'));setTimeout(()=>{const sel=document.getElementById('active-subject-select');if(sel){for(let i=0;i<sel.options.length;i++)if(sel.options[i].text.includes('${x.d.name.substring(0,15)}')){sel.selectedIndex=i;break;}}},300)">
+      <div class="plan-item-num" style="color:${numColor}">${i+1}.</div>
+      <div style="flex:1;min-width:0;">
+        <div class="plan-item-name" style="color:${x.d.color}">${x.d.name}</div>
+        <div class="plan-item-why">${x.why}</div>
+      </div>
+      <div class="plan-item-time" style="color:${rateColor}">${timeStr}</div>
+    </div>`;
+  }).join('');
+  const sub = document.getElementById('dash-plan-subtitle');
+  if(sub) sub.textContent = hasWeights?'Baseado no edital + desempenho':'Configure pesos do edital para melhorar';
+}
+
 function updateStreak(ds){if(state.lastStudyDate===ds)return;const y=new Date();y.setDate(y.getDate()-1);state.streak=state.lastStudyDate===y.toDateString()?(state.streak||0)+1:1;state.lastStudyDate=ds;}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
 function setStyle(id,p,v){const e=document.getElementById(id);if(e)e.style[p]=v;}
@@ -12899,8 +13200,18 @@ function wrongHistoryRender(){
   );
 
   // Sort
-  const sort = document.getElementById('wh-sort-sel')?.value || 'erros';
+  const sort = document.getElementById('wh-sort-sel')?.value || 'prioridade';
+  const _priScore = q => {
+    // Prioridade = (erros × peso_edital) / dias_desde_ultimo + penalidade_taxa_TEC
+    const daysAgo = q.lastErro ? (Date.now()-new Date(q.lastErro))/(86400000) : 999;
+    const freshness = Math.max(1, 30 - daysAgo); // mais recente = maior urgência
+    const disc = state.disciplines.find(d=>d.name.toLowerCase().includes((q.materia||'').toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
+    const edW = disc&&state.edital&&state.edital.weights ? (state.edital.weights[disc.id]||1) : 1;
+    const tecPenalty = q.myTotal>0 ? Math.max(0,(0.7-(q.myTotal-q.erros)/q.myTotal)*10) : 5;
+    return q.erros * 10 + freshness * 2 + edW * 0.5 + tecPenalty;
+  };
   filtered.sort((a,b)=>{
+    if(sort==='prioridade') return _priScore(b) - _priScore(a);
     if(sort==='recent') return (b.lastErro||'').localeCompare(a.lastErro||'');
     if(sort==='materia') return (a.materia||'').localeCompare(b.materia||'');
     if(sort==='tec'){
