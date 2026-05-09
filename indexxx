@@ -3935,7 +3935,7 @@ select.inp{appearance:none;cursor:pointer;}
         </p>
 
         <!-- Header da tabela -->
-        <div style="display:grid;grid-template-columns:36px 1fr 90px 90px 55px;gap:.5rem;align-items:center;padding:.45rem .65rem;margin-bottom:.35rem;font-size:.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">
+        <div style="display:grid;grid-template-columns:36px 1fr 90px 90px 80px;gap:.5rem;align-items:center;padding:.45rem .65rem;margin-bottom:.35rem;font-size:.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">
           <div>Cor</div>
           <div>Nome</div>
           <div style="text-align:center;">Meta/Sem</div>
@@ -4986,6 +4986,22 @@ select.inp{appearance:none;cursor:pointer;}
     </div>
   </div>
 </div>
+<!-- Modal Assuntos/Subassuntos -->
+<div class="overlay" id="assuntos-modal-overlay" onclick="if(event.target===this)closeAssuntosModal()" style="align-items:flex-start;padding-top:4vh;">
+  <div class="modal" style="max-width:520px;width:96vw;max-height:88vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.1rem;">
+      <div id="ass-disc-color" style="width:14px;height:14px;border-radius:50%;flex-shrink:0;"></div>
+      <h3 style="margin:0;flex:1;" id="ass-disc-name">Assuntos</h3>
+      <button onclick="closeAssuntosModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1;">×</button>
+    </div>
+    <p style="font-size:.67rem;color:var(--muted2);margin-bottom:1rem;line-height:1.55;">Cadastre assuntos e subassuntos desta disciplina. Eles aparecerão como sugestões no campo de assunto do cronômetro.</p>
+    <div id="ass-list" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:.85rem;"></div>
+    <div style="display:flex;gap:.5rem;">
+      <input id="ass-new-inp" class="inp" placeholder="Novo assunto..." style="flex:1;" onkeydown="if(event.key==='Enter')assAddAssunto()"/>
+      <button class="btn btn-gold" style="padding:.4rem .9rem;font-size:.78rem;" onclick="assAddAssunto()">+ Adicionar</button>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="slot-modal-overlay" onclick="closeSlotModal(event)">
   <div class="modal">
     <h3 id="slot-modal-title">Bloco de Horário</h3>
@@ -5495,7 +5511,7 @@ function renderDiscFull(){
     const secs=state.sessions.filter(s=>s.subjectId===d.id).reduce((a,b)=>a+b.seconds,0);
     const qTotal=(state.questionSessions||[]).filter(s=>s.subjectId===d.id).reduce((a,s)=>a+s.total,0);
     const row=document.createElement('div');
-    row.style.cssText='display:grid;grid-template-columns:36px 1fr 90px 90px 55px;gap:.5rem;align-items:center;padding:.6rem .65rem;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);transition:all .15s;';
+    row.style.cssText='display:grid;grid-template-columns:36px 1fr 90px 90px 80px;gap:.5rem;align-items:center;padding:.6rem .65rem;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);transition:all .15s;';
     row.onmouseenter=()=>{row.style.borderColor='var(--border2)';row.style.background='var(--surf3)';};
     row.onmouseleave=()=>{row.style.borderColor='var(--border)';row.style.background='var(--surf2)';};
 
@@ -5535,6 +5551,14 @@ function renderDiscFull(){
     // Ações
     const actDiv=document.createElement('div');
     actDiv.style.cssText='display:flex;align-items:center;justify-content:center;gap:4px;';
+    const assBtn=document.createElement('button');
+    const assCount=(d.assuntos||[]).length;
+    assBtn.style.cssText='background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.72rem;padding:2px 5px;border-radius:4px;transition:all .15s;white-space:nowrap;';
+    assBtn.innerHTML='📋'+(assCount?'<sup style="font-size:.55rem;font-family:var(--mono);margin-left:1px;">'+assCount+'</sup>':'');
+    assBtn.title='Gerenciar assuntos e subassuntos';
+    assBtn.onmouseenter=()=>{assBtn.style.background='rgba(34,211,238,.1)';};
+    assBtn.onmouseleave=()=>{assBtn.style.background='none';};
+    assBtn.onclick=()=>openAssuntosModal(d.id);
     const delBtn=document.createElement('button');
     delBtn.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:2px 5px;border-radius:4px;transition:all .15s;';
     delBtn.innerHTML='🗑';
@@ -5542,6 +5566,7 @@ function renderDiscFull(){
     delBtn.onmouseenter=()=>{delBtn.style.color='var(--red)';delBtn.style.background='rgba(248,113,113,.1)';};
     delBtn.onmouseleave=()=>{delBtn.style.color='var(--muted)';delBtn.style.background='none';};
     delBtn.onclick=()=>discDelete(d.id, d.name);
+    actDiv.appendChild(assBtn);
     actDiv.appendChild(delBtn);
 
     row.appendChild(colorBtn);
@@ -5628,6 +5653,206 @@ function discDelete(id, name){
   state.disciplines=state.disciplines.filter(x=>x.id!==id);
   saveState(); renderDisciplines(); renderDiscFull();
   flash('Disciplina excluída!','var(--red)');
+}
+
+// ═══ ASSUNTOS / SUBASSUNTOS ════════════════════
+let _assModalDiscId = null;
+
+function openAssuntosModal(discId) {
+  _assModalDiscId = discId;
+  const d = state.disciplines.find(x => x.id === discId);
+  if (!d) return;
+  if (!d.assuntos) d.assuntos = [];
+  document.getElementById('ass-disc-name').textContent = d.name;
+  document.getElementById('ass-disc-color').style.background = d.color;
+  document.getElementById('ass-disc-color').style.boxShadow = '0 0 8px ' + d.color + '66';
+  document.getElementById('ass-new-inp').value = '';
+  renderAssuntosModal();
+  document.getElementById('assuntos-modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('ass-new-inp').focus(), 120);
+}
+
+function closeAssuntosModal() {
+  document.getElementById('assuntos-modal-overlay').classList.remove('open');
+  _assModalDiscId = null;
+}
+
+function renderAssuntosModal() {
+  const d = state.disciplines.find(x => x.id === _assModalDiscId);
+  const list = document.getElementById('ass-list');
+  if (!d || !list) return;
+  if (!d.assuntos) d.assuntos = [];
+
+  if (!d.assuntos.length) {
+    list.innerHTML = '<div style="font-size:.72rem;color:var(--muted2);padding:.5rem 0;">Nenhum assunto cadastrado ainda.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  d.assuntos.forEach((ass, ai) => {
+    const block = document.createElement('div');
+    block.style.cssText = 'background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;';
+
+    // Header do assunto
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:6px;padding:.5rem .65rem;cursor:pointer;';
+    hdr.onclick = () => {
+      const sub = block.querySelector('.sub-list');
+      if (sub) sub.style.display = sub.style.display === 'none' ? 'block' : 'none';
+    };
+
+    const chevron = document.createElement('span');
+    chevron.style.cssText = 'font-size:.65rem;color:var(--muted);transition:transform .15s;user-select:none;';
+    chevron.textContent = '▼';
+
+    const nameEl = document.createElement('span');
+    nameEl.style.cssText = 'flex:1;font-size:.8rem;font-weight:700;';
+    nameEl.textContent = ass.name;
+    nameEl.title = 'Clique duas vezes para editar';
+    nameEl.ondblclick = (e) => { e.stopPropagation(); assEditName(d.id, ass.id, nameEl); };
+
+    const subCount = document.createElement('span');
+    subCount.style.cssText = 'font-size:.6rem;color:var(--muted2);font-family:var(--mono);';
+    subCount.textContent = (ass.subassuntos||[]).length + ' sub';
+
+    const delAssBtn = document.createElement('button');
+    delAssBtn.style.cssText = 'background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem;padding:0 3px;line-height:1;';
+    delAssBtn.innerHTML = '×';
+    delAssBtn.title = 'Remover assunto';
+    delAssBtn.onclick = (e) => { e.stopPropagation(); assRemoveAssunto(d.id, ass.id); };
+
+    hdr.appendChild(chevron);
+    hdr.appendChild(nameEl);
+    hdr.appendChild(subCount);
+    hdr.appendChild(delAssBtn);
+
+    // Subassuntos
+    const subDiv = document.createElement('div');
+    subDiv.className = 'sub-list';
+    subDiv.style.cssText = 'padding:0 .65rem .55rem .65rem;border-top:1px solid var(--border);';
+
+    (ass.subassuntos || []).forEach(sub => {
+      const sr = document.createElement('div');
+      sr.style.cssText = 'display:flex;align-items:center;gap:5px;padding:3px 0;';
+      const dot = document.createElement('span');
+      dot.style.cssText = 'width:5px;height:5px;border-radius:50%;background:var(--muted2);flex-shrink:0;';
+      const sn = document.createElement('span');
+      sn.style.cssText = 'flex:1;font-size:.73rem;color:var(--muted3);cursor:pointer;';
+      sn.textContent = sub.name;
+      sn.title = 'Duplo-clique para editar';
+      sn.ondblclick = () => assEditSubName(d.id, ass.id, sub.id, sn);
+      const ds = document.createElement('button');
+      ds.style.cssText = 'background:none;border:none;color:var(--muted);cursor:pointer;font-size:.75rem;padding:0 2px;line-height:1;';
+      ds.innerHTML = '×';
+      ds.title = 'Remover subassunto';
+      ds.onclick = () => assRemoveSub(d.id, ass.id, sub.id);
+      sr.appendChild(dot); sr.appendChild(sn); sr.appendChild(ds);
+      subDiv.appendChild(sr);
+    });
+
+    // Input novo subassunto
+    const addSubRow = document.createElement('div');
+    addSubRow.style.cssText = 'display:flex;gap:4px;margin-top:5px;';
+    const subInp = document.createElement('input');
+    subInp.type = 'text';
+    subInp.placeholder = 'Novo subassunto...';
+    subInp.style.cssText = 'flex:1;font-size:.72rem;background:var(--surf);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:4px 8px;outline:none;font-family:var(--ff);';
+    subInp.onfocus = () => { subInp.style.borderColor = 'var(--cyan)'; };
+    subInp.onblur = () => { subInp.style.borderColor = 'var(--border2)'; };
+    const addSubBtn = document.createElement('button');
+    addSubBtn.style.cssText = 'background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.3);border-radius:6px;color:var(--cyan);font-size:.7rem;padding:3px 8px;cursor:pointer;white-space:nowrap;';
+    addSubBtn.textContent = '+ Sub';
+    const doAddSub = () => {
+      const v = subInp.value.trim();
+      if (!v) return;
+      if (!ass.subassuntos) ass.subassuntos = [];
+      ass.subassuntos.push({id: uid(), name: v});
+      saveState(); renderAssuntosModal(); renderDiscFull();
+    };
+    subInp.onkeydown = e => { if (e.key === 'Enter') doAddSub(); };
+    addSubBtn.onclick = doAddSub;
+    addSubRow.appendChild(subInp);
+    addSubRow.appendChild(addSubBtn);
+    subDiv.appendChild(addSubRow);
+
+    block.appendChild(hdr);
+    block.appendChild(subDiv);
+    list.appendChild(block);
+  });
+}
+
+function assEditName(discId, assId, el) {
+  const d = state.disciplines.find(x => x.id === discId);
+  const ass = (d?.assuntos||[]).find(x => x.id === assId);
+  if (!ass) return;
+  const orig = ass.name;
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.value = orig;
+  inp.style.cssText = el.style.cssText + 'background:var(--surf);border:1px solid var(--cyan);border-radius:5px;padding:1px 5px;outline:none;width:100%;';
+  const save = () => { const v = inp.value.trim(); if (v) { ass.name = v; saveState(); } renderAssuntosModal(); renderDiscFull(); };
+  inp.onblur = save;
+  inp.onkeydown = e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') renderAssuntosModal(); };
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
+
+function assEditSubName(discId, assId, subId, el) {
+  const d = state.disciplines.find(x => x.id === discId);
+  const ass = (d?.assuntos||[]).find(x => x.id === assId);
+  const sub = (ass?.subassuntos||[]).find(x => x.id === subId);
+  if (!sub) return;
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.value = sub.name;
+  inp.style.cssText = el.style.cssText + 'background:var(--surf);border:1px solid var(--cyan);border-radius:5px;padding:1px 5px;outline:none;';
+  const save = () => { const v = inp.value.trim(); if (v) { sub.name = v; saveState(); } renderAssuntosModal(); };
+  inp.onblur = save;
+  inp.onkeydown = e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') renderAssuntosModal(); };
+  el.replaceWith(inp); inp.focus(); inp.select();
+}
+
+function assAddAssunto() {
+  const inp = document.getElementById('ass-new-inp');
+  const v = inp?.value.trim();
+  if (!v) { flash('Digite o nome do assunto.', '#f0b429'); return; }
+  const d = state.disciplines.find(x => x.id === _assModalDiscId);
+  if (!d) return;
+  if (!d.assuntos) d.assuntos = [];
+  d.assuntos.push({id: uid(), name: v, subassuntos: []});
+  if (inp) inp.value = '';
+  saveState(); renderAssuntosModal(); renderDiscFull();
+}
+
+function assRemoveAssunto(discId, assId) {
+  const d = state.disciplines.find(x => x.id === discId);
+  if (!d) return;
+  d.assuntos = (d.assuntos||[]).filter(x => x.id !== assId);
+  saveState(); renderAssuntosModal(); renderDiscFull();
+}
+
+function assRemoveSub(discId, assId, subId) {
+  const d = state.disciplines.find(x => x.id === discId);
+  const ass = (d?.assuntos||[]).find(x => x.id === assId);
+  if (!ass) return;
+  ass.subassuntos = (ass.subassuntos||[]).filter(x => x.id !== subId);
+  saveState(); renderAssuntosModal();
+}
+
+function cronUpdateAssuntosDatalist() {
+  const discId = document.getElementById('cron-disc-sel')?.value;
+  const d = state.disciplines.find(x => x.id === discId);
+  let dl = document.getElementById('cron-assunto-dl');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'cron-assunto-dl';
+    document.getElementById('cron-assunto-inp')?.setAttribute('list', 'cron-assunto-dl');
+    document.body.appendChild(dl);
+  }
+  dl.innerHTML = '';
+  (d?.assuntos || []).forEach(ass => {
+    dl.appendChild(new Option(ass.name));
+    (ass.subassuntos || []).forEach(sub => {
+      dl.appendChild(new Option(sub.name));
+    });
+  });
 }
 
 function discUpdateSummary(){
@@ -15442,6 +15667,7 @@ function cronUpdateDisc() {
   cronState.discId    = d?.id    || '';
   cronState.discName  = d?.name  || '';
   cronState.discColor = d?.color || '#22d3ee';
+  try { cronUpdateAssuntosDatalist(); } catch(e) {}
 
   // Carregar link do caderno salvo para esta disciplina
   const linkInp = document.getElementById('cron-tec-link');
