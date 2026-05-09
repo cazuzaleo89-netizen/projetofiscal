@@ -5021,6 +5021,7 @@ const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:
   filaRevisao:[],
   tecCaderno:{url:'',cadernoBase:'',idPasta:''},
   tecCadernos:[],
+  tecAutoStart:true, tecAutoPause:true, tecRichWidget:true,
   wrongHistory:{},
   missoesCiclo:null,
   xp:0, level:1, achievements:[], focusStreak:0, lastFocusDate:null,
@@ -5028,6 +5029,9 @@ const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:
   speedSettings:{}
 };
 let timer={running:false,paused:false,seconds:0,subject:'',subjectId:'',interval:null};
+let tecTabWindow=null; // referência ao tab TEC para postMessage reverso
+let tecTabInactiveTimer=null;
+let tecLastActivityAt=Date.now();
 let editingSlot=null;
 
 // ═══ PERSIST ══════════════════════════════════
@@ -13610,9 +13614,82 @@ function frCheckQueue() {
       });
       n.onclick = () => { window.focus(); frShowAlertModal(newlyReady); };
     }
+    // Push para o tab TEC para o usuário ver sem trocar de aba
+    try { tecPushFilaReady(newlyReady); } catch(e) {}
     const page = document.getElementById('page-filarev');
     if (page && page.classList.contains('active')) frRender();
   }
+}
+
+// Modal de celebração ao terminar caderno TEC
+function tecCadernoEndModal(stats){
+  const total   = parseInt(stats.total)   || 0;
+  const correct = parseInt(stats.correct) || 0;
+  const wrong   = parseInt(stats.wrong)   || (total - correct);
+  const elapsed = parseInt(stats.elapsed) || (typeof cronState !== 'undefined' ? (cronState.elapsed||0) : 0);
+  const pct = total > 0 ? Math.round(correct/total*100) : 0;
+  const mins = Math.floor(elapsed/60);
+  const secs = elapsed % 60;
+  const tempoStr = mins+'min'+(secs?(' '+secs+'s'):'');
+  const cor = pct >= 80 ? '#10b981' : pct >= 60 ? '#f0a500' : '#ef4444';
+  const emoji = pct >= 80 ? '🎉' : pct >= 60 ? '👏' : '💪';
+
+  // Remove modal anterior se existir
+  const old = document.getElementById('tec-end-modal'); if(old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'tec-end-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  modal.innerHTML = `
+    <div style="background:linear-gradient(135deg,#161d2e,#0c1120);border:2px solid ${cor};border-radius:18px;padding:2rem;max-width:480px;width:100%;text-align:center;box-shadow:0 12px 60px rgba(0,0,0,.7);">
+      <div style="font-size:3rem;margin-bottom:.5rem;">${emoji}</div>
+      <h2 style="margin:0 0 .25rem;font-size:1.4rem;color:#f9fafb;">Caderno finalizado!</h2>
+      <div style="color:#94a3b8;font-size:.85rem;margin-bottom:1.25rem;">${total} questões em ${tempoStr}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.5rem;">
+        <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:.75rem;">
+          <div style="font-size:1.5rem;font-weight:800;color:#10b981;">${correct}</div>
+          <div style="font-size:.65rem;color:#94a3b8;">Acertos</div>
+        </div>
+        <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:.75rem;">
+          <div style="font-size:1.5rem;font-weight:800;color:#ef4444;">${wrong}</div>
+          <div style="font-size:.65rem;color:#94a3b8;">Erros</div>
+        </div>
+        <div style="background:${cor}20;border:1px solid ${cor}66;border-radius:10px;padding:.75rem;">
+          <div style="font-size:1.5rem;font-weight:800;color:${cor};">${pct}%</div>
+          <div style="font-size:.65rem;color:#94a3b8;">Acerto</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.5rem;">
+        <button onclick="tecCadernoEndSave(${total},${correct},${elapsed})" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:10px;padding:.75rem;font-weight:700;cursor:pointer;font-size:.85rem;">💾 Salvar sessão e encerrar</button>
+        <button onclick="tecCadernoEndContinue()" style="background:rgba(74,108,247,.15);color:#4a6cf7;border:1px solid rgba(74,108,247,.4);border-radius:10px;padding:.6rem;font-weight:600;cursor:pointer;font-size:.78rem;">▶ Continuar (próximo caderno)</button>
+        <button onclick="document.getElementById('tec-end-modal').remove()" style="background:none;color:#94a3b8;border:none;padding:.4rem;cursor:pointer;font-size:.7rem;">✕ Fechar sem salvar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  try { frPlayAlert(); } catch(e) {}
+}
+
+function tecCadernoEndSave(total, correct, elapsed){
+  // Pré-preenche e salva sessão TEC
+  const totInp = document.getElementById('tec-rb-total');
+  const corInp = document.getElementById('tec-rb-correct');
+  if(totInp) totInp.value = total;
+  if(corInp) corInp.value = correct;
+  if(typeof tecSession !== 'undefined'){
+    tecSession.active = true;
+    if(elapsed > 0) tecSession.seconds = elapsed;
+  }
+  // Encerra cronômetro se estiver rodando
+  if(typeof cronState !== 'undefined' && cronState.running){
+    try { cronStop(); } catch(e) {}
+  }
+  document.getElementById('tec-end-modal')?.remove();
+  flash('💾 Sessão TEC salva: '+correct+'/'+total, '#10b981', 4000);
+}
+
+function tecCadernoEndContinue(){
+  document.getElementById('tec-end-modal')?.remove();
+  flash('▶ Continue resolvendo no TEC — o painel está monitorando.', '#4a6cf7', 4000);
 }
 
 function frShowAlertModal(items) {
@@ -15688,6 +15765,8 @@ function cronTick() {
   // Persistir a cada 30 segundos
   _cronPersistTick++;
   if (_cronPersistTick % 30 === 0) cronPersist();
+  // Push stats ao TEC tab a cada 5s
+  if (_cronPersistTick % 5 === 0) { try { tecPushStats(); } catch(e) {} }
   cronUpdateUI();
 }
 
@@ -15766,6 +15845,7 @@ function cronCount(key) {
   if (el) { el.style.transform='scale(1.4)'; setTimeout(()=>el.style.transform='scale(1)',120); }
   cronPipSync();
   cronInvUpdate();
+  try { tecPushStats(); } catch(e) {}
 }
 
 // ── Card "Investida Ativa" ──────────────────────────────
@@ -15834,6 +15914,69 @@ function cronInvStart(data) {
       totalQuestoes: _cronInv.total   || 0,
     });
   }
+
+  // ── 🚀 AUTO-START: cronômetro inicia sozinho se disciplina detectada ──
+  tecAutoStartCron(data.materia || '');
+}
+
+// Match disciplina pela matéria do TEC e auto-inicia cronômetro
+function tecAutoStartCron(materia) {
+  if (state.tecAutoStart === false) return;
+  if (typeof cronState === 'undefined') return;
+  if (cronState.running || cronState.paused) return; // já rodando — não interferir
+  if (!materia) return;
+  // Match case-insensitive (mesma lógica de ~17319)
+  const matLower = materia.toLowerCase().replace(/^dir\.\s*/,'');
+  const disc = state.disciplines.find(d => {
+    const n = d.name.toLowerCase().replace(/^dir\.\s*/,'');
+    return n.includes(matLower) || matLower.includes(n);
+  });
+  if (!disc) {
+    flash('📡 TEC detectou "'+materia+'" mas não há disciplina cadastrada.', '#f0b429', 5000);
+    return;
+  }
+  // Atualiza dropdown e dispara cronStart
+  const sel = document.getElementById('cron-disc-sel');
+  if (sel) sel.value = disc.id;
+  cronUpdateDisc();
+  try {
+    cronStart();
+    flash('▶ Cronômetro iniciado em '+disc.name+' (auto via TEC)', disc.color || '#10b981', 4000);
+  } catch(e) { console.warn('Auto-start falhou:', e); }
+}
+
+// Envia stats ao tab TEC para o widget rico
+function tecPushStats() {
+  if (!tecTabWindow || tecTabWindow.closed) return;
+  if (state.tecRichWidget === false) return;
+  if (typeof cronState === 'undefined') return;
+  const stats = {
+    type: 'TEC_STATS_UPDATE',
+    elapsed: cronState.elapsed || 0,
+    acertos: cronState.acertos || 0,
+    erros: cronState.erros || 0,
+    resolved: cronState.resolved || 0,
+    running: !!cronState.running,
+    paused: !!cronState.paused,
+    discName: cronState.discName || '',
+  };
+  try { tecTabWindow.postMessage(stats, '*'); } catch(e) {}
+}
+
+// Envia notificação de fila ready para o tab TEC
+function tecPushFilaReady(items) {
+  if (!tecTabWindow || tecTabWindow.closed) return;
+  if (!items || !items.length) return;
+  try {
+    tecTabWindow.postMessage({
+      type: 'PF_FILA_READY',
+      items: items.map(i => ({
+        id: i.id, qid: i.qid || '', link: i.link || '',
+        desc: (i.desc || i.assunto || 'Questão').slice(0, 80),
+        erros: i.erros || 1,
+      }))
+    }, '*');
+  } catch(e) {}
 }
 
 function cronInvUpdate() {
@@ -17241,11 +17384,49 @@ document.addEventListener('keydown', function(e){
 window.addEventListener('message', function(e){
   if(!e.data) return;
 
+  // ── Salvar referência ao tab TEC (para postMessage reverso) ──
+  if(e.source && e.source !== window && e.data.type && e.data.type.indexOf('TEC_') === 0){
+    tecTabWindow = e.source;
+  }
+
+  // ── Aba TEC inativa/ativa (auto-pausa do cronômetro) ──
+  if(e.data.type === 'TEC_TAB_INACTIVE'){
+    if(state.tecAutoPause !== false && typeof cronState !== 'undefined'
+       && cronState.running && !cronState.paused){
+      try { cronPause(); flash('⏸ Cronômetro pausado (TEC inativo >2min)', '#f0b429', 4000); } catch(x){}
+    }
+    return;
+  }
+  if(e.data.type === 'TEC_TAB_ACTIVE'){
+    if(state.tecAutoPause !== false && typeof cronState !== 'undefined'
+       && cronState.running && cronState.paused){
+      try { cronResume(); flash('▶ Cronômetro retomado', '#10b981', 3000); tecPushStats(); } catch(x){}
+    }
+    return;
+  }
+
+  // ── Fim de caderno (todas questões resolvidas) ──
+  if(e.data.type === 'TEC_CADERNO_END'){
+    tecCadernoEndModal(e.data.stats || {});
+    return;
+  }
+
+  // ── Pedido de abrir próxima questão da fila (Alt+R no TEC) ──
+  if(e.data.type === 'PF_REQUEST_NEXT_FILA'){
+    var ready = (state.filaRevisao||[]).filter(function(q){ return q.status==='ready' || (q.due && new Date(q.due)<=new Date() && q.status!=='done'); });
+    if(ready.length && tecTabWindow && !tecTabWindow.closed){
+      try { tecTabWindow.postMessage({type:'PF_OPEN_QUESTION', url: ready[0].link, desc: ready[0].desc||''}, '*'); } catch(x){}
+    } else if(tecTabWindow && !tecTabWindow.closed){
+      try { tecTabWindow.postMessage({type:'PF_NO_FILA'}, '*'); } catch(x){}
+    }
+    return;
+  }
+
   // Tempo real: cada questão respondida no TecConcursos
   if(e.data.type === 'TEC_QUESTION'){
     var r = e.data.result;
     if(r === 'ping') return;
-    if(r === 'session_info') { cronInvStart(e.data); return; }
+    if(r === 'session_info') { cronInvStart(e.data); setTimeout(tecPushStats, 500); return; }
 
     // wrong_fast: só atualiza cronômetro/contador (ainda sem dados do modal)
     if(r === 'wrong_fast'){
@@ -17515,23 +17696,23 @@ window.addEventListener('message', function(e){
         'applyTecFilter(_pfs);return;' +
       '}' +
       'function applyTecFilter(s){' +
-        'var mat=s.materia||””,ass=s.assunto||””,naoResp=!!s.naoRespondidas,kw=s.keywords||””;' +
+        'var mat=s.materia||"",ass=s.assunto||"",naoResp=!!s.naoRespondidas,kw=s.keywords||"";' +
         // Badge de status
-        'var b=document.createElement(“div”);' +
-        'b.style.cssText=”position:fixed;bottom:14px;right:14px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:360px;line-height:1.5;”;' +
-        'b.innerHTML=”🔍 Aplicando filtro...”;' +
+        'var b=document.createElement("div");' +
+        'b.style.cssText="position:fixed;bottom:14px;right:14px;background:linear-gradient(135deg,#22d3ee,#6366f1);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;font-family:sans-serif;box-shadow:0 4px 20px rgba(0,0,0,.5);max-width:360px;line-height:1.5;";' +
+        'b.innerHTML="🔍 Aplicando filtro...";' +
         'document.body.appendChild(b);' +
         // Função: acha elemento visível pelo texto exato, fallback contém
         'function findEl(text){' +
           'var t=text.trim().toLowerCase();' +
           'var best=null,bestLen=9999;' +
-          'Array.from(document.querySelectorAll(“li,button,a,span,div,td,label,h3,h4”)).forEach(function(el){' +
+          'Array.from(document.querySelectorAll("li,button,a,span,div,td,label,h3,h4")).forEach(function(el){' +
             'if(el.offsetParent===null)return;' +
             'var tx=el.textContent.trim().toLowerCase();' +
             'if(tx===t&&tx.length<bestLen){best=el;bestLen=tx.length;}' +
           '});' +
           'if(!best){' +
-            'Array.from(document.querySelectorAll(“li,button,a,span,div,td,label,h3,h4”)).forEach(function(el){' +
+            'Array.from(document.querySelectorAll("li,button,a,span,div,td,label,h3,h4")).forEach(function(el){' +
               'if(el.offsetParent===null)return;' +
               'var tx=el.textContent.trim().toLowerCase();' +
               'if(tx.indexOf(t)>-1&&tx.length<bestLen){best=el;bestLen=tx.length;}' +
@@ -17539,38 +17720,38 @@ window.addEventListener('message', function(e){
           '}' +
           'return best;' +
         '}' +
-        // Passo 0 (opcional): filtrar “Não respondidas” primeiro
+        // Passo 0 (opcional): filtrar "Não respondidas" primeiro
         'function applyNaoRespondidas(cb){' +
           'if(!naoResp){cb();return;}' +
-          'var sitEl=findEl(“Situação”)||findEl(“Situacao”)||findEl(“Resolvidas”)||findEl(“Respondidas”);' +
+          'var sitEl=findEl("Situação")||findEl("Situacao")||findEl("Resolvidas")||findEl("Respondidas");' +
           'if(sitEl){sitEl.click();}' +
           'setTimeout(function(){' +
-            'var nrEl=findEl(“Não respondidas”)||findEl(“Nao respondidas”)||findEl(“Não resolvidas”)||findEl(“Nao resolvidas”)||findEl(“Não respondida”);' +
-            'if(nrEl){nrEl.click();b.innerHTML=”✓ Não Respondidas ativado<br>🔍 Buscando matéria...”;}' +
-            'else{b.innerHTML=”⚠ Filtro Não Respondidas não encontrado<br>🔍 Buscando matéria...”;}' +
+            'var nrEl=findEl("Não respondidas")||findEl("Nao respondidas")||findEl("Não resolvidas")||findEl("Nao resolvidas")||findEl("Não respondida");' +
+            'if(nrEl){nrEl.click();b.innerHTML="✓ Não Respondidas ativado<br>🔍 Buscando matéria...";}' +
+            'else{b.innerHTML="⚠ Filtro Não Respondidas não encontrado<br>🔍 Buscando matéria...";}' +
             'setTimeout(cb,600);' +
           '},700);' +
         '}' +
-        // Passo 1: clicar em “Matéria e assunto” no sidebar
+        // Passo 1: clicar em "Matéria e assunto" no sidebar
         'function applyMateria(){' +
-          'var sideEl=findEl(“Matéria e assunto”)||findEl(“Materia e assunto”)||findEl(“Matéria”)||findEl(“Materia”);' +
-          'if(!sideEl){b.innerHTML=”⚠ Filtro de matéria não encontrado.<br>Está na página de filtros do TecConcursos?”;setTimeout(function(){b.remove();},6000);return;}' +
+          'var sideEl=findEl("Matéria e assunto")||findEl("Materia e assunto")||findEl("Matéria")||findEl("Materia");' +
+          'if(!sideEl){b.innerHTML="⚠ Filtro de matéria não encontrado.<br>Está na página de filtros do TecConcursos?";setTimeout(function(){b.remove();},6000);return;}' +
           'sideEl.click();' +
-          'b.innerHTML=”🔍 Buscando matéria: <em>”+mat+”</em>...”;' +
+          'b.innerHTML="🔍 Buscando matéria: <em>"+mat+"</em>...";' +
           'setTimeout(function(){' +
-            'if(!mat){b.innerHTML=”✅ Filtros aplicados!”;setTimeout(function(){b.remove();},3000);return;}' +
+            'if(!mat){b.innerHTML="✅ Filtros aplicados!";setTimeout(function(){b.remove();},3000);return;}' +
             'var matEl=findEl(mat);' +
-            'if(!matEl){b.innerHTML=”⚠ Matéria <em>”+mat+”</em> não encontrada.<br>Selecione manualmente.”;setTimeout(function(){b.remove();},6000);return;}' +
+            'if(!matEl){b.innerHTML="⚠ Matéria <em>"+mat+"</em> não encontrada.<br>Selecione manualmente.";setTimeout(function(){b.remove();},6000);return;}' +
             'matEl.click();' +
-            'b.innerHTML=”✓ Matéria: <em>”+mat+”</em><br>🔍 Buscando assunto: <em>”+ass+”</em>...”;' +
+            'b.innerHTML="✓ Matéria: <em>"+mat+"</em><br>🔍 Buscando assunto: <em>"+ass+"</em>...";' +
             'setTimeout(function(){' +
-              'if(!ass){b.innerHTML=”✅ Matéria <em>”+mat+”</em> filtrada!”;setTimeout(function(){b.remove();},4000);return;}' +
+              'if(!ass){b.innerHTML="✅ Matéria <em>"+mat+"</em> filtrada!";setTimeout(function(){b.remove();},4000);return;}' +
               'var assEl=findEl(ass);' +
               'if(assEl){' +
                 'assEl.click();' +
-                'b.innerHTML=”✓ Assunto: <em>”+ass+”</em>”+(naoResp?” · Não Respondidas”:””)+(kw?”<br>🔍 Inserindo palavras-chave...”:””);' +
+                'b.innerHTML="✓ Assunto: <em>"+ass+"</em>"+(naoResp?" · Não Respondidas":"")+(kw?"<br>🔍 Inserindo palavras-chave...":"");' +
               '}else{' +
-                'b.innerHTML=”⚠ Assunto <em>”+ass+”</em> não encontrado — selecione manualmente.”+(kw?”<br>🔍 Inserindo palavras-chave...”:””);' +
+                'b.innerHTML="⚠ Assunto <em>"+ass+"</em> não encontrado — selecione manualmente."+(kw?"<br>🔍 Inserindo palavras-chave...":"");' +
               '}' +
               'setTimeout(applyKeywords,900);' +
             '},800);' +
@@ -17578,38 +17759,38 @@ window.addEventListener('message', function(e){
         '}' +
         // Passo 4: insere palavras-chave do enunciado no campo de busca
         'function applyKeywords(){' +
-          'if(!kw){b.innerHTML=”✅ Filtros aplicados!”+(naoResp?”<br>(Não Respondidas)”:””);setTimeout(function(){b.remove();},5000);return;}' +
+          'if(!kw){b.innerHTML="✅ Filtros aplicados!"+(naoResp?"<br>(Não Respondidas)":"");setTimeout(function(){b.remove();},5000);return;}' +
           // procura inputs de busca/pesquisa visíveis
-          'var inputs=Array.from(document.querySelectorAll(“input[type=text],input[type=search],input:not([type])”));' +
+          'var inputs=Array.from(document.querySelectorAll("input[type=text],input[type=search],input:not([type])"));' +
           'var target=null;' +
           'for(var i=0;i<inputs.length;i++){' +
             'var el=inputs[i];if(el.offsetParent===null)continue;' +
-            'var ph=(el.placeholder||””).toLowerCase();' +
-            'var nm=(el.name||””).toLowerCase();' +
-            'var id=(el.id||””).toLowerCase();' +
-            'if(ph.indexOf(“pesquis”)>-1||ph.indexOf(“busc”)>-1||ph.indexOf(“palavr”)>-1||nm.indexOf(“pesquis”)>-1||nm.indexOf(“busc”)>-1||id.indexOf(“pesquis”)>-1||id.indexOf(“busc”)>-1||id.indexOf(“search”)>-1){target=el;break;}' +
+            'var ph=(el.placeholder||"").toLowerCase();' +
+            'var nm=(el.name||"").toLowerCase();' +
+            'var id=(el.id||"").toLowerCase();' +
+            'if(ph.indexOf("pesquis")>-1||ph.indexOf("busc")>-1||ph.indexOf("palavr")>-1||nm.indexOf("pesquis")>-1||nm.indexOf("busc")>-1||id.indexOf("pesquis")>-1||id.indexOf("busc")>-1||id.indexOf("search")>-1){target=el;break;}' +
           '}' +
           'if(!target){' +
-            // tenta clicar em “Pesquisa” / “Palavras-chave” no sidebar primeiro
-            'var pesqSec=findEl(“Palavras-chave”)||findEl(“Palavras chave”)||findEl(“Pesquisa”)||findEl(“Busca”);' +
+            // tenta clicar em "Pesquisa" / "Palavras-chave" no sidebar primeiro
+            'var pesqSec=findEl("Palavras-chave")||findEl("Palavras chave")||findEl("Pesquisa")||findEl("Busca");' +
             'if(pesqSec){pesqSec.click();' +
               'setTimeout(function(){' +
-                'var inputs2=Array.from(document.querySelectorAll(“input[type=text],input[type=search],input:not([type])”));' +
+                'var inputs2=Array.from(document.querySelectorAll("input[type=text],input[type=search],input:not([type])"));' +
                 'for(var j=0;j<inputs2.length;j++){if(inputs2[j].offsetParent!==null){target=inputs2[j];break;}}' +
-                'if(target){fillAndSubmit(target);}else{b.innerHTML=”✅ Filtros aplicados.<br>Cole no campo de pesquisa: <strong>”+kw+”</strong>”;setTimeout(function(){b.remove();},9000);}' +
+                'if(target){fillAndSubmit(target);}else{b.innerHTML="✅ Filtros aplicados.<br>Cole no campo de pesquisa: <strong>"+kw+"</strong>";setTimeout(function(){b.remove();},9000);}' +
               '},700);return;' +
             '}' +
-            'b.innerHTML=”✅ Filtros aplicados.<br>Cole nas palavras-chave: <strong>”+kw+”</strong>”;setTimeout(function(){b.remove();},9000);return;' +
+            'b.innerHTML="✅ Filtros aplicados.<br>Cole nas palavras-chave: <strong>"+kw+"</strong>";setTimeout(function(){b.remove();},9000);return;' +
           '}' +
           'fillAndSubmit(target);' +
         '}' +
         'function fillAndSubmit(el){' +
-          'var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,”value”).set;' +
+          'var setter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value").set;' +
           'setter.call(el,kw);' +
-          'el.dispatchEvent(new Event(“input”,{bubbles:true}));' +
-          'el.dispatchEvent(new Event(“change”,{bubbles:true}));' +
+          'el.dispatchEvent(new Event("input",{bubbles:true}));' +
+          'el.dispatchEvent(new Event("change",{bubbles:true}));' +
           'el.focus();' +
-          'b.innerHTML=”✅ Palavras-chave: <strong>”+kw+”</strong><br>Pressione Enter ou clique em Aplicar Filtros.”;' +
+          'b.innerHTML="✅ Palavras-chave: <strong>"+kw+"</strong><br>Pressione Enter ou clique em Aplicar Filtros.";' +
           'setTimeout(function(){b.remove();},9000);' +
         '}' +
         'applyNaoRespondidas(applyMateria);' +
@@ -17723,14 +17904,112 @@ window.addEventListener('message', function(e){
           'try{_pfw.postMessage(msg,"*");return true;}catch(x){}' +
         '}return false;' +
       '}' +
+      // Envia mensagem genérica ao painel (qualquer type)
+      'function sendRaw(msg){' +
+        'if(_pfw&&!_pfw.closed){try{_pfw.postMessage(msg,"*");return true;}catch(x){}}return false;' +
+      '}' +
+      // Estado do widget rico
+      'var _pfStats={elapsed:0,acertos:0,erros:0,resolved:0,running:false,paused:false,discName:""};' +
+      'var _pfMin=false;' + // minimizado?
+      'var _pfFila=[];' + // itens prontos para revisão
+      'function pfFmt(s){if(!s||s<0)s=0;var m=Math.floor(s/60),sc=s%60;return(m<60?String(m).padStart(2,"0"):Math.floor(m/60)+":"+String(m%60).padStart(2,"0"))+":"+String(sc).padStart(2,"0");}' +
+      'function pfRenderWidget(){' +
+        'if(!el)return;' +
+        'if(_pfMin){' +
+          'el.innerHTML="&#9889;";' +
+          'el.style.padding="8px 12px";el.style.fontSize="16px";' +
+          'return;' +
+        '}' +
+        'var s=_pfStats;' +
+        'var pct=s.resolved>0?Math.round(s.acertos/(s.acertos+s.erros||1)*100):0;' +
+        'var cor=pct>=70?"#10b981":pct>=50?"#f0a500":"#ef4444";' +
+        'var statusIcon=s.paused?"&#9208;":(s.running?"&#9711;":"&#9889;");' +
+        'var filaBadge=_pfFila.length>0?\'<span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;margin-left:6px;font-size:11px;animation:pulse 1.5s infinite;">&#128203; \'+_pfFila.length+\'</span>\':"";' +
+        'el.innerHTML=\'<div style="display:flex;align-items:center;gap:8px;font-size:12px;">\' +' +
+          '\'<span style="font-size:14px;">\'+statusIcon+\'</span>\' +' +
+          '\'<span style="font-family:monospace;font-weight:700;">\'+pfFmt(s.elapsed)+\'</span>\' +' +
+          '(s.acertos+s.erros>0?\'<span style="opacity:.7;">|</span><span style="color:#10b981;">&#10003;\'+s.acertos+\'</span><span style="color:#ef4444;">&#10007;\'+s.erros+\'</span><span style="color:\'+cor+\';font-weight:800;">\'+pct+\'%</span>\':\'\') +' +
+          'filaBadge +' +
+          '\'<span onclick="event.stopPropagation();window._pfMinToggle()" style="margin-left:6px;cursor:pointer;opacity:.6;font-size:14px;">_</span>\' +' +
+        '\'</div>\';' +
+        'el.style.padding="8px 14px";el.style.fontSize="13px";' +
+      '}' +
+      'window._pfMinToggle=function(){_pfMin=!_pfMin;pfRenderWidget();};' +
+      // Banner de fila no topo do TEC
+      'function pfShowFilaBanner(items){' +
+        'var prev=document.getElementById("_pfFilaBanner");if(prev)prev.remove();' +
+        'if(!items||!items.length)return;' +
+        'var bn=document.createElement("div");bn.id="_pfFilaBanner";' +
+        'bn.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ef4444,#f59e0b);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;box-shadow:0 6px 30px rgba(239,68,68,.5);font-family:sans-serif;display:flex;align-items:center;gap:12px;cursor:pointer;animation:slideDown .4s;";' +
+        'var it=items[0];' +
+        'bn.innerHTML=\'&#128203; <span>Hora de revisar: <em style="font-weight:600;">\'+(it.desc||"questão").substring(0,50)+\'</em>\'+(items.length>1?\' (+\'+(items.length-1)+\')\':\'\')+\'</span>\' +' +
+          '\'<button onclick="event.stopPropagation();window.open(\\\'\'+it.link+\'\\\',\\\'_self\\\')" style="background:#fff;color:#ef4444;border:none;border-radius:8px;padding:5px 12px;font-weight:800;cursor:pointer;font-size:12px;">Abrir</button>\' +' +
+          '\'<span onclick="event.stopPropagation();this.parentElement.remove();" style="opacity:.7;cursor:pointer;font-size:16px;">&#10005;</span>\';' +
+        'bn.onclick=function(){window.open(it.link,"_self");};' +
+        'document.body.appendChild(bn);' +
+        'setTimeout(function(){if(bn.parentElement)bn.style.opacity="0.7";},10000);' +
+      '}' +
+      // Listener de mensagens reversas do painel
+      'window.addEventListener("message",function(ev){' +
+        'if(!ev.data||!ev.data.type)return;' +
+        'if(ev.data.type==="TEC_STATS_UPDATE"){' +
+          '_pfStats={elapsed:ev.data.elapsed||0,acertos:ev.data.acertos||0,erros:ev.data.erros||0,resolved:ev.data.resolved||0,running:!!ev.data.running,paused:!!ev.data.paused,discName:ev.data.discName||""};' +
+          'pfRenderWidget();return;' +
+        '}' +
+        'if(ev.data.type==="PF_FILA_READY"){' +
+          '_pfFila=ev.data.items||[];pfShowFilaBanner(_pfFila);pfRenderWidget();return;' +
+        '}' +
+        'if(ev.data.type==="PF_OPEN_QUESTION"&&ev.data.url){' +
+          'window.open(ev.data.url,"_self");return;' +
+        '}' +
+        'if(ev.data.type==="PF_NO_FILA"){' +
+          'var nb=document.createElement("div");' +
+          'nb.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#0c1120;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:2147483647;border:1px solid rgba(255,255,255,.15);font-family:sans-serif;";' +
+          'nb.textContent="&#9203; Fila vazia — nenhuma revisão pendente";' +
+          'document.body.appendChild(nb);setTimeout(function(){nb.remove();},3000);return;' +
+        '}' +
+      '});' +
+      // Detecção de visibilidade da aba (auto-pausa)
+      'var _pfHiddenSince=0;' +
+      'document.addEventListener("visibilitychange",function(){' +
+        'if(document.hidden){_pfHiddenSince=Date.now();' +
+          'setTimeout(function(){' +
+            'if(document.hidden&&_pfHiddenSince&&(Date.now()-_pfHiddenSince)>=120000){sendRaw({type:"TEC_TAB_INACTIVE"});}' +
+          '},120000);' +
+        '}else{' +
+          'if(_pfHiddenSince&&(Date.now()-_pfHiddenSince)>=120000){sendRaw({type:"TEC_TAB_ACTIVE"});}' +
+          '_pfHiddenSince=0;' +
+        '}' +
+      '});' +
+      // Atalho Alt+R: pede próxima questão da fila ao painel
+      'window.addEventListener("keydown",function(ev){' +
+        'if(ev.altKey&&(ev.key==="r"||ev.key==="R")){ev.preventDefault();sendRaw({type:"PF_REQUEST_NEXT_FILA"});}' +
+      '});' +
+      // Detecção de fim de caderno
+      'var _pfEndSent=false;' +
+      'function checkCadernoEnd(){' +
+        'if(_pfEndSent)return;' +
+        'var tx=document.body.innerText||"";' +
+        'var qm=tx.match(/Quest[a\\u00e3]o\\s+(\\d+)\\s+de\\s+(\\d+)/i);' +
+        'if(!qm)return;' +
+        'var n=parseInt(qm[1]),t=parseInt(qm[2]);' +
+        'if(n===t&&t>0){' +
+          'var s=parse();var done=s?(s.a+s.e):0;' +
+          'if(done>=t){' +
+            '_pfEndSent=true;' +
+            'setTimeout(function(){sendRaw({type:"TEC_CADERNO_END",stats:{total:t,correct:s.a,wrong:s.e,elapsed:_pfStats.elapsed||0}});},2500);' +
+          '}' +
+        '}' +
+      '}' +
       'function check(){' +
         // Detecta navegação para nova questão → importa histórico após 1,2s (tempo para DOM carregar)
-        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;setTimeout(scanHistory,1200);}' +
+        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
         'var s=parse();if(!s)return;' +
         'var da=s.a-A,de=s.e-E;' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
         // Erro: captura qid/url AGORA (antes da página mudar), depois relê
         // myErrors do modal "Meu Desempenho" que pode demorar >500ms para carregar
+        'if(da>0||de>0){setTimeout(checkCadernoEnd,800);}' +
         'if(de>0){' +
           'var _de=de;E=s.e;' +
           'var _qi0=getInfo();' + // snapshot: qid/url corretos neste instante
@@ -17763,11 +18042,11 @@ window.addEventListener('message', function(e){
       'if(connected){sendSession();_lastUrl=window.location.href;setTimeout(scanHistory,1500);}' +
       'var el=document.createElement("div");' +
       'el.id="_pfBadge";' +
-      'el.style.cssText="position:fixed;bottom:12px;right:12px;color:#fff;padding:8px 15px;border-radius:10px;font-size:13px;font-weight:700;z-index:2147483647;cursor:pointer;box-shadow:0 2px 16px rgba(0,0,0,.5);font-family:sans-serif;user-select:none;letter-spacing:.3px;transition:background .3s;";' +
+      'el.style.cssText="position:fixed;bottom:12px;right:12px;color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;z-index:2147483647;cursor:pointer;box-shadow:0 2px 16px rgba(0,0,0,.5);font-family:sans-serif;user-select:none;letter-spacing:.3px;transition:all .3s;";' +
       'el.style.background=connected?"linear-gradient(135deg,#10b981,#0ea5e9)":"linear-gradient(135deg,#f59e0b,#ef4444)";' +
-      'el.innerHTML=connected?"&#9889; Painel Fiscal: <b>ON</b>":"&#9888; Painel nao encontrado";' +
-      'el.title=connected?"Monitor ativo — clique para desativar":"Abra o Painel Fiscal no mesmo navegador e tente novamente";' +
-      'el.onclick=function(){obs.disconnect();el.remove();window._pfM=null;};' +
+      'el.title=connected?"Monitor ativo — clique para desativar | Alt+R abre próxima da fila":"Abra o Painel Fiscal no mesmo navegador e tente novamente";' +
+      'if(connected){pfRenderWidget();}else{el.innerHTML="&#9888; Painel nao encontrado";}' +
+      'el.ondblclick=function(){if(confirm("Desativar monitor?")){obs.disconnect();el.remove();var fb=document.getElementById("_pfFilaBanner");if(fb)fb.remove();window._pfM=null;}};' +
       'document.body.appendChild(el);' +
       'window._pfM={obs:obs,el:el,win:_pfw};' +
     '})()';
