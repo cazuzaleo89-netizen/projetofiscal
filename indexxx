@@ -2191,6 +2191,18 @@ select.inp{appearance:none;cursor:pointer;}
           <span id="d-goal-done">0h estudadas</span>
           <span id="d-goal-target" style="color:var(--muted3)">meta: 4h</span>
         </div>
+        <!-- Meta de questões do dia -->
+        <div style="margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem;">
+            <span style="font-size:.65rem;color:var(--muted2);">🎯 Questões hoje</span>
+            <span style="font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--cyan);" id="d-q-today-pct">0 / <span id="d-q-goal-val">20</span></span>
+          </div>
+          <div class="pbar" style="margin-bottom:.25rem;"><div class="pfill" id="d-q-today-bar" style="background:linear-gradient(90deg,var(--cyan),var(--purple));width:0%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);">
+            <span id="d-q-today-sub">Nenhuma questão hoje</span>
+            <button onclick="whShowQGoalEdit()" style="background:none;border:none;cursor:pointer;font-size:.58rem;color:var(--muted);font-family:var(--ff);padding:0;">✎ meta</button>
+          </div>
+        </div>
       </div>
 
       <!-- Prova countdown banner (hidden until date set) -->
@@ -2845,14 +2857,29 @@ select.inp{appearance:none;cursor:pointer;}
           <div style="margin-top:.5rem;color:var(--purple);">📊 O TEC também mostra quantas vezes você resolveu cada questão — o Monitor captura esse dado</div>
         </div>
 
+        <!-- Busca -->
+        <div class="frow" style="margin-bottom:.4rem;">
+          <input class="inp" id="wh-search-inp" placeholder="🔍 Buscar por descrição, matéria ou assunto…" style="font-size:.75rem;" oninput="wrongHistoryRender()"/>
+        </div>
         <!-- Filtros -->
-        <div class="frow">
-          <label class="flabel">Mostrar</label>
-          <select class="inp" id="wh-filter-sel" style="font-size:.8rem;" onchange="whFilterChange()">
-            <option value="all">Todas as questões erradas</option>
-            <option value="reinc">Somente reincidentes (2+)</option>
-            <option value="once">Erradas apenas 1 vez</option>
-          </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.4rem;">
+          <div>
+            <label class="flabel">Mostrar</label>
+            <select class="inp" id="wh-filter-sel" style="font-size:.75rem;" onchange="whFilterChange()">
+              <option value="all">Todas</option>
+              <option value="reinc">Reincidentes (2+)</option>
+              <option value="once">1 erro apenas</option>
+            </select>
+          </div>
+          <div>
+            <label class="flabel">Ordenar</label>
+            <select class="inp" id="wh-sort-sel" style="font-size:.75rem;" onchange="wrongHistoryRender()">
+              <option value="erros">Mais erros</option>
+              <option value="recent">Mais recente</option>
+              <option value="materia">Matéria</option>
+              <option value="tec">Acerto TEC ↑</option>
+            </select>
+          </div>
         </div>
 
         <!-- Actions -->
@@ -2886,10 +2913,11 @@ select.inp{appearance:none;cursor:pointer;}
             <span style="font-size:.6rem;color:var(--muted2);">reincidentes</span>
           </div>
           <div style="display:flex;gap:.35rem;">
-            <button class="btn btn-ghost" style="font-size:.6rem;padding:.2rem .5rem;" onclick="wrongHistoryRender()">↺ Atualizar</button>
+            <span style="font-size:.6rem;color:var(--muted2);align-self:center;" id="wh-count-label"></span>
+            <button class="btn btn-ghost" style="font-size:.6rem;padding:.2rem .5rem;" onclick="wrongHistoryRender()">↺</button>
           </div>
         </div>
-        <div id="wh-list" style="display:flex;flex-direction:column;gap:.45rem;max-height:600px;overflow-y:auto;padding-right:2px;"></div>
+        <div id="wh-list" style="display:flex;flex-direction:column;gap:.45rem;max-height:65vh;overflow-y:auto;padding-right:2px;"></div>
       </div>
     </div>
   </div>
@@ -4912,7 +4940,7 @@ select.inp{appearance:none;cursor:pointer;}
 // ═══ STATE ═══════════════════════════════════
 const COLORS=['#22d3ee','#06b6d4','#00d4ff','#8b5cf6','#10b981','#39ff14','#3b82f6','#84cc16','#ef4444','#a78bfa'];
 let selColor=COLORS[0];
-const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:4,streak:0,lastStudyDate:null,questionSessions:[],questionGoals:[],planDone:{},mwResults:{},mwWeeks:[],
+const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:4,dailyQGoal:20,streak:0,lastStudyDate:null,questionSessions:[],questionGoals:[],planDone:{},mwResults:{},mwWeeks:[],
   resumos:[],
   srsCards:[],
   edital:{weights:{},concurso:''},
@@ -5001,6 +5029,16 @@ function updateStats(){
   const goal=(state.dailyGoal||4)*3600,pct=Math.min(100,Math.round(todS/goal*100));
   set('d-goal-pct',pct+'%');setStyle('d-goal-bar','width',pct+'%');
   set('d-goal-done',formatHM(todS)+' estudadas');set('d-goal-target','meta: '+(state.dailyGoal||4)+'h');
+  // Meta de questões do dia
+  const todayQ = state.questionSessions.filter(s=>new Date(s.date).toDateString()===today).reduce((a,s)=>a+s.total,0);
+  const todayQCorr = state.questionSessions.filter(s=>new Date(s.date).toDateString()===today).reduce((a,s)=>a+s.correct,0);
+  const qGoal = state.dailyQGoal||20;
+  const qPct = Math.min(100,Math.round(todayQ/qGoal*100));
+  const qGoalEl = document.getElementById('d-q-goal-val'); if(qGoalEl) qGoalEl.textContent=qGoal;
+  const qPctEl = document.getElementById('d-q-today-pct');
+  if(qPctEl){ const sp=qPctEl.querySelector('span'); if(sp)sp.textContent=qGoal; qPctEl.childNodes[0].textContent=todayQ+' / '; }
+  setStyle('d-q-today-bar','width',qPct+'%');
+  set('d-q-today-sub', todayQ>0 ? `${todayQ} resolvidas · ${todayQCorr>0?Math.round(todayQCorr/todayQ*100)+'% acerto':'registre acertos'} · ${qPct}% da meta` : 'Nenhuma questão hoje');
   const allQ=state.questionSessions,totQ=allQ.reduce((a,s)=>a+s.total,0),corQ=allQ.reduce((a,s)=>a+s.correct,0);
   const rateQ=totQ?Math.round(corQ/totQ*100):null,rStr=rateQ!==null?rateQ+'%':'—';
   ['qs-total','dq-total'].forEach(id=>set(id,totQ));['qs-correct','dq-correct'].forEach(id=>set(id,corQ));
@@ -12843,18 +12881,44 @@ function wrongHistoryRender(){
   const el = document.getElementById('wh-list');
   if(!el) return;
 
-  const all = Object.values(state.wrongHistory).sort((a,b)=>b.erros-a.erros);
+  const all = Object.values(state.wrongHistory);
 
   // Filter
   const filter = document.getElementById('wh-filter-sel')?.value || 'all';
-  const filtered = filter === 'reinc' ? all.filter(q=>q.erros>=2)
-                 : filter === 'once'  ? all.filter(q=>q.erros===1)
-                 : all;
+  let filtered = filter === 'reinc' ? all.filter(q=>q.erros>=2)
+               : filter === 'once'  ? all.filter(q=>q.erros===1)
+               : all;
+
+  // Text search
+  const search = (document.getElementById('wh-search-inp')?.value || '').trim().toLowerCase();
+  if(search) filtered = filtered.filter(q=>
+    (q.desc||'').toLowerCase().includes(search) ||
+    (q.materia||'').toLowerCase().includes(search) ||
+    (q.assunto||'').toLowerCase().includes(search) ||
+    (q.qid||'').includes(search)
+  );
+
+  // Sort
+  const sort = document.getElementById('wh-sort-sel')?.value || 'erros';
+  filtered.sort((a,b)=>{
+    if(sort==='recent') return (b.lastErro||'').localeCompare(a.lastErro||'');
+    if(sort==='materia') return (a.materia||'').localeCompare(b.materia||'');
+    if(sort==='tec'){
+      const ra = a.myTotal>0 ? (a.myTotal-a.erros)/a.myTotal : 1;
+      const rb = b.myTotal>0 ? (b.myTotal-b.erros)/b.myTotal : 1;
+      return ra - rb; // piores acertos primeiro
+    }
+    return b.erros - a.erros; // default: mais erros
+  });
+
+  // Count label
+  const lbl = document.getElementById('wh-count-label');
+  if(lbl) lbl.textContent = filtered.length + ' questão' + (filtered.length!==1?'s':'') + (search?' encontrada':'');
 
   if(!filtered.length){
-    el.innerHTML = `<div style="font-size:.72rem;color:var(--muted2);text-align:center;padding:1rem 0;">
-      Nenhum erro registrado ainda.<br>
-      <span style="font-size:.65rem;color:var(--muted);">O Monitor ⚡ vai capturar automaticamente quando você errar questões no TEC.</span>
+    el.innerHTML = `<div style="font-size:.72rem;color:var(--muted2);text-align:center;padding:1.5rem 0;">
+      ${search ? `🔍 Nenhuma questão encontrada para "<strong>${search}</strong>".` :
+      `Nenhum erro registrado ainda.<br><span style="font-size:.65rem;color:var(--muted);">O Monitor ⚡ captura automaticamente quando você errar no TEC.</span>`}
     </div>`;
     return;
   }
@@ -12864,47 +12928,46 @@ function wrongHistoryRender(){
     const disc = state.disciplines.find(d=>d.name.toLowerCase().includes((q.materia||'').toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
     const color = disc ? disc.color : '#ef4444';
     const lastDate = q.lastErro ? new Date(q.lastErro).toLocaleDateString('pt-BR') : '—';
-    const totalTecErros = q.myErrors > 0 ? q.myErrors : q.erros;
-    const alreadyInFila = state.filaRevisao.some(f=>f.link===q.url && f.status!=='done');
+    const alreadyInFila = (state.filaRevisao||[]).some(f=>(f.link===q.url||f.qid===q.qid) && f.status!=='done');
 
-    // Severity
+    // TEC accuracy badge
+    const tecAcerto = q.myTotal>0 ? Math.round((q.myTotal - (q.myErrors||q.erros)) / q.myTotal * 100) : null;
+    const tecBadge = q.myTotal>0
+      ? `<span style="font-size:.52rem;padding:1px 6px;border-radius:8px;background:${tecAcerto>=70?'rgba(16,185,129,.12)':'rgba(239,68,68,.1)'};color:${tecAcerto>=70?'var(--green)':'#f87171'};border:1px solid ${tecAcerto>=70?'rgba(16,185,129,.25)':'rgba(239,68,68,.2)'};">TEC ${tecAcerto}% (${q.myTotal}q)</span>`
+      : '';
+
     const sevIcon = q.erros>=5?'💀':q.erros>=3?'🔴':q.erros>=2?'⚠️':'📋';
     const sevColor = q.erros>=5?'#ef4444':q.erros>=3?'#f97316':q.erros>=2?'#f59e0b':'var(--muted3)';
 
-    return `<div style="background:var(--surf2);border:1px solid ${isReinc?'rgba(239,68,68,.3)':'var(--border)'};border-radius:var(--r);padding:.7rem .9rem;transition:all .15s;${isReinc?'background:rgba(239,68,68,.04);':''}"
+    const datesHtml = q.datas&&q.datas.length>1
+      ? `<div style="display:flex;gap:3px;margin-top:.35rem;flex-wrap:wrap;">${q.datas.slice(-6).map(d=>`<span style="font-size:.5rem;padding:1px 5px;border-radius:4px;background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.2);">${new Date(d).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`).join('')}</div>`
+      : '';
+
+    return `<div style="background:var(--surf2);border:1px solid ${isReinc?'rgba(239,68,68,.3)':'var(--border)'};border-radius:var(--r);padding:.65rem .85rem;transition:all .15s;${isReinc?'background:rgba(239,68,68,.03);':''}"
       onmouseenter="this.style.borderColor='${isReinc?'rgba(239,68,68,.5)':'var(--border2)'}'"
       onmouseleave="this.style.borderColor='${isReinc?'rgba(239,68,68,.3)':'var(--border)'}'">
-      <div style="display:flex;align-items:flex-start;gap:.6rem;">
-        <div style="font-size:1.1rem;flex-shrink:0;margin-top:1px;">${sevIcon}</div>
+      <div style="display:flex;align-items:flex-start;gap:.55rem;">
+        <div style="font-size:1rem;flex-shrink:0;margin-top:2px;">${sevIcon}</div>
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.2rem;">
-            <span style="font-size:.78rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px;"
-              title="${q.desc||q.url}">${q.desc||'Questão TecConcursos'}</span>
-            <span style="font-size:.55rem;font-weight:800;padding:1px 7px;border-radius:10px;background:${sevColor}22;color:${sevColor};border:1px solid ${sevColor}44;flex-shrink:0;">
-              ${q.erros}× erro${q.erros>1?'s':''}
-            </span>
-            ${q.myTotal>0?`<span style="font-size:.52rem;padding:1px 6px;border-radius:8px;background:rgba(74,108,247,.1);color:var(--cyan);border:1px solid rgba(74,108,247,.2);">TEC: ${q.myTotal} resolução${q.myTotal>1?'ões':''}</span>`:''}
+          <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin-bottom:.2rem;">
+            <span style="font-size:.76rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;" title="${(q.desc||q.url).replace(/"/g,'&quot;')}">${q.desc||'Questão TecConcursos'}</span>
+            <span style="font-size:.52rem;font-weight:800;padding:1px 6px;border-radius:8px;background:${sevColor}22;color:${sevColor};border:1px solid ${sevColor}44;flex-shrink:0;">${q.erros}× erro${q.erros>1?'s':''}</span>
+            ${tecBadge}
           </div>
-          <div style="font-size:.6rem;color:var(--muted2);">
-            ${q.materia?`<span style="color:${color};font-weight:700;">${q.materia.replace('Dir. ','')}</span> · `:''}
-            ${q.assunto?q.assunto.slice(0,55)+' · ':''}
-            Último erro: ${lastDate}
+          <div style="font-size:.59rem;color:var(--muted2);">
+            ${q.materia?`<span style="color:${color};font-weight:700;">${q.materia.replace('Dir. ','')}</span> · `:''}${q.assunto?q.assunto.slice(0,50)+' · ':''}Último: ${lastDate}
           </div>
-          ${q.datas&&q.datas.length>1?`<div style="display:flex;gap:3px;margin-top:.35rem;flex-wrap:wrap;">
-            ${q.datas.slice(-5).map(d=>`<span style="font-size:.5rem;padding:1px 5px;border-radius:4px;background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.2);">${new Date(d).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`).join('')}
-          </div>`:''}
+          ${datesHtml}
         </div>
-        <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0;align-items:flex-end;">
-          <a href="${q.url}" target="_blank"
-            style="background:rgba(74,108,247,.12);border:1px solid rgba(74,108,247,.3);border-radius:6px;padding:3px 8px;font-size:.6rem;color:var(--cyan);text-decoration:none;font-weight:700;white-space:nowrap;">
-            🔗 Abrir
-          </a>
-          ${!alreadyInFila?`<button onclick="whAddToFila('${q.qid}')"
-            style="background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.3);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:.6rem;color:var(--gold);font-weight:700;font-family:var(--ff);white-space:nowrap;">
-            + Fila
-          </button>`:`<span style="font-size:.55rem;color:var(--green);font-weight:700;">✓ Na fila</span>`}
-          <button onclick="whClearOne('${q.qid}')"
-            style="background:none;border:1px solid rgba(248,113,113,.2);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--red);">✕</button>
+        <div style="display:flex;flex-direction:column;gap:.28rem;flex-shrink:0;align-items:flex-end;">
+          <button onclick="whStudyNow('${q.qid}')" title="Abrir no TEC e adicionar à fila"
+            style="background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(249,115,22,.15));border:1px solid rgba(239,68,68,.4);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:.6rem;color:#f87171;font-weight:700;font-family:var(--ff);white-space:nowrap;">
+            ▶ Estudar
+          </button>
+          ${!alreadyInFila
+            ? `<button onclick="whAddToFila('${q.qid}')" style="background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);border-radius:6px;padding:2px 7px;cursor:pointer;font-size:.58rem;color:var(--gold);font-weight:700;font-family:var(--ff);white-space:nowrap;">+ Fila</button>`
+            : `<span style="font-size:.54rem;color:var(--green);font-weight:700;">✓ Na fila</span>`}
+          <button onclick="whClearOne('${q.qid}')" style="background:none;border:1px solid rgba(248,113,113,.15);border-radius:6px;padding:2px 5px;cursor:pointer;font-size:.58rem;color:var(--red);">✕</button>
         </div>
       </div>
     </div>`;
@@ -12931,6 +12994,31 @@ function whAddToFila(qid){
   });
   saveState(); frRender(); frUpdateNavBadge(); wrongHistoryRender();
   flash('✅ Adicionada à fila de revisão!','#10b981');
+}
+
+function whStudyNow(qid){
+  whEnsure(); frEnsure();
+  const q = state.wrongHistory[qid];
+  if(!q) return;
+  // Abre no TEC
+  if(q.url) window.open(q.url,'_blank');
+  // Adiciona à fila se não estiver
+  const already = (state.filaRevisao||[]).some(f=>(f.link===q.url||f.qid===qid)&&f.status!=='done');
+  if(!already){
+    const disc = state.disciplines.find(d=>d.name.toLowerCase().includes((q.materia||'').toLowerCase().replace(/^dir\.\s*/,'').split(' ')[0]));
+    const now = Date.now();
+    state.filaRevisao.unshift({
+      id:uid(),link:q.url,qid:q.qid,desc:q.desc,materia:q.materia,assunto:q.assunto,
+      discId:disc?disc.id:'',discName:disc?disc.name:(q.materia||'—'),discColor:disc?disc.color:'#ef4444',
+      intervalMins:15,addedAt:now,dueAt:now+15*60000,
+      status:'waiting',openedAt:null,doneAt:null,
+      erros:q.erros,reincidente:q.erros>=2,prioridade:q.erros>=2?'alta':'normal',
+    });
+    saveState(); frRender(); frUpdateNavBadge(); wrongHistoryRender();
+    flash('▶ Questão aberta + adicionada à fila (15min)!','#ef4444',4000);
+  } else {
+    flash('▶ Questão aberta no TEC!','#22d3ee',3000);
+  }
 }
 
 function whClearOne(qid){
@@ -12977,6 +13065,17 @@ function whAddAllReincToFila(){
   });
   saveState();frRender();frUpdateNavBadge();wrongHistoryRender();whRenderKpis();
   flash(`✅ ${added} questão(ões) reincidente(s) adicionada(s) à fila!`,'#10b981');
+}
+
+function whShowQGoalEdit(){
+  const cur = state.dailyQGoal||20;
+  const v = prompt('Meta diária de questões:', cur);
+  if(v===null) return;
+  const n = parseInt(v);
+  if(!n||n<1){flash('Valor inválido','#f0b429');return;}
+  state.dailyQGoal = n;
+  saveState();
+  flash(`Meta: ${n} questões/dia salva!`,'#10b981');
 }
 
 function whClearAll(){
@@ -13342,11 +13441,18 @@ function frRender() {
   const sorted = [...state.filaRevisao].sort((a, b) => {
     const order = {ready:0, waiting:1, done:2};
     if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
+    if(a.status==='waiting' && b.status==='waiting'){
+      // reincidentes primeiro dentro de waiting
+      if((b.reincidente?1:0) !== (a.reincidente?1:0)) return (b.reincidente?1:0)-(a.reincidente?1:0);
+    }
     return a.dueAt - b.dueAt;
   });
 
+  // Collapse de revisadas: agrupa done num toggle
+  const doneItems = sorted.filter(i=>i.status==='done');
+  const activeItems = sorted.filter(i=>i.status!=='done');
   list.innerHTML = '';
-  sorted.forEach(item => {
+  activeItems.forEach(item => {
     const msLeft = item.dueAt - now;
     const secsLeft = Math.max(0, Math.ceil(msLeft / 1000));
     const minsLeft = Math.floor(secsLeft / 60);
@@ -13395,7 +13501,7 @@ function frRender() {
         ${isReady
           ? `<button onclick="frOpenQuestion('${item.id}')" class="fr-open-btn">▶ Refazer</button>`
           : isDone
-            ? `<span style="font-size:.6rem;color:var(--green);font-weight:700;">Revisada</span>`
+            ? `<span style="font-size:.6rem;color:var(--green);font-weight:700;">✓ Feita</span>`
             : `<button onclick="frOpenQuestion('${item.id}')" style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);padding:.28rem .6rem;cursor:pointer;font-size:.62rem;color:var(--muted2);font-family:var(--ff);" title="Abrir agora sem esperar">↗ Abrir</button>`
         }
         <div style="display:flex;gap:.25rem;">
@@ -13407,6 +13513,43 @@ function frRender() {
       </div>`;
     list.appendChild(el);
   });
+
+  // Bloco colapsável de revisadas
+  if(doneItems.length > 0){
+    const doneWrap = document.createElement('div');
+    doneWrap.style.cssText = 'margin-top:.5rem;border-top:1px solid var(--border);padding-top:.5rem;';
+    doneWrap.innerHTML = `<button onclick="frToggleDone(this)" style="background:none;border:none;cursor:pointer;font-size:.65rem;color:var(--muted2);font-family:var(--ff);display:flex;align-items:center;gap:.35rem;padding:.2rem 0;width:100%;">
+      <span>▶</span><span>✓ ${doneItems.length} revisada${doneItems.length>1?'s':''} — clique para ver</span>
+      <button onclick="event.stopPropagation();frClearDone()" style="margin-left:auto;background:none;border:1px solid rgba(248,113,113,.2);border-radius:5px;padding:1px 6px;cursor:pointer;font-size:.57rem;color:var(--red);font-family:var(--ff);">🧹 Limpar</button>
+    </button>
+    <div id="fr-done-list" style="display:none;margin-top:.35rem;display:flex;flex-direction:column;gap:.3rem;overflow:hidden;max-height:0;transition:max-height .3s ease;"></div>`;
+    list.appendChild(doneWrap);
+    // Preenche a lista de feitas
+    const doneList = doneWrap.querySelector('#fr-done-list');
+    doneItems.forEach(item => {
+      const d = document.createElement('div');
+      d.style.cssText = 'display:flex;align-items:center;gap:.5rem;background:rgba(16,185,129,.04);border:1px solid rgba(16,185,129,.1);border-radius:8px;padding:.4rem .65rem;opacity:.7;';
+      d.innerHTML = `<span style="font-size:.65rem;color:var(--green);">✓</span>
+        <span style="font-size:.65rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted2);">${item.desc||'Questão'}</span>
+        <a href="${item.link}" target="_blank" style="font-size:.58rem;color:var(--cyan);text-decoration:none;">🔗</a>
+        <button onclick="frRemove('${item.id}')" style="background:none;border:none;cursor:pointer;font-size:.6rem;color:var(--muted);font-family:var(--ff);">✕</button>`;
+      doneList.appendChild(d);
+    });
+  }
+}
+
+function frToggleDone(btn){
+  const list = btn.parentElement.querySelector('#fr-done-list');
+  if(!list) return;
+  const isOpen = list.style.maxHeight && list.style.maxHeight !== '0px';
+  if(isOpen){
+    list.style.maxHeight = '0px';
+    btn.querySelector('span').textContent = '▶';
+  } else {
+    list.style.display='flex';list.style.flexDirection='column';
+    list.style.maxHeight = list.scrollHeight + 'px';
+    btn.querySelector('span').textContent = '▼';
+  }
 }
 
 
@@ -16728,6 +16871,26 @@ if(typeof chrome!=='undefined'&&chrome?.storage?.local){
 // Keyboard shortcuts: C = certa, X = errada (funciona no cronômetro E na sessão TEC)
 document.addEventListener('keydown', function(e){
   if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+
+  // ── Atalhos Alt+número para navegar entre abas ──────────────
+  if(e.altKey && !e.ctrlKey && !e.metaKey){
+    const navMap = {
+      '1':'dashboard','2':'cronometro','3':'filarev',
+      '4':'problemáticas','5':'sessao','6':'questoes',
+      '7':'estatisticas','8':'progresso','9':'arena'
+    };
+    if(navMap[e.key]){
+      const navItem = document.querySelector(`.nav-item[onclick*="'${navMap[e.key]}'"]`);
+      goPage(navMap[e.key], navItem);
+      e.preventDefault(); return;
+    }
+    // Alt+F busca em Q. Problemáticas
+    if(e.key==='f'||e.key==='F'){
+      const inp=document.getElementById('wh-search-inp');
+      if(inp){ goPage('problemáticas',null); setTimeout(()=>inp.focus(),200); e.preventDefault(); return; }
+    }
+  }
+
   if(e.ctrlKey || e.altKey || e.metaKey) return;
 
   // Sessão TEC (Metas / bookmarklet flow)
