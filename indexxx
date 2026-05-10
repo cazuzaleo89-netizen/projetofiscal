@@ -1614,6 +1614,13 @@ select.inp{appearance:none;cursor:pointer;}
 .cron-running .cron-sep{animation-play-state:running;}
 .cron-running .cron-seg-s{color:#a5b4fc;text-shadow:0 0 26px rgba(165,180,252,.55);}
 .cron-paused .cron-seg{opacity:.55;filter:saturate(.5);}
+/* Floating timer: digits compactos — override do clamp da página inteira */
+#float-timer .cron-seg{font-size:clamp(20px,5vw,28px)!important;padding:5px 8px!important;border-radius:8px!important;}
+#float-timer .cron-sep{font-size:clamp(16px,4vw,22px)!important;}
+#float-timer .cron-segmented{gap:4px!important;}
+/* Modo compacto ainda menor */
+#float-timer.fw-compact .cron-seg{font-size:18px!important;padding:4px 7px!important;}
+#float-timer.fw-compact .cron-sep{font-size:14px!important;}
 @keyframes cronTick{0%{opacity:.25;}50%{opacity:1;}100%{opacity:.25;}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
