@@ -5841,6 +5841,55 @@ function assRemoveSub(discId, assId, subId) {
   saveState(); renderAssuntosModal();
 }
 
+// Importa um Assunto: vindo do TEC para a disciplina correspondente.
+// Aceita strings hierárquicas tipo "Tributário > IR > Lucro Real" ou "A / B / C"
+// e cadastra A como assunto + B,C como subassuntos. Retorna true se algo novo foi adicionado.
+function tecImportAssunto(materia, assunto) {
+  if (state.tecAutoImportAssunto === false) return false;
+  if (!assunto || !assunto.trim()) return false;
+  const matRaw = (materia||'').trim();
+  const matLower = matRaw.toLowerCase().replace(/^dir\.\s*/,'');
+  let disc = matRaw ? state.disciplines.find(d => {
+    const n = d.name.toLowerCase().replace(/^dir\.\s*/,'');
+    return n === matLower || n.includes(matLower) || matLower.includes(n);
+  }) : null;
+  if (!disc && typeof cronState !== 'undefined' && cronState.discId) {
+    disc = state.disciplines.find(d => d.id === cronState.discId);
+  }
+  if (!disc) return false;
+  if (!disc.assuntos) disc.assuntos = [];
+  const parts = assunto.split(/\s*(?:>|→|»|\/|\||::|–|—)\s*/).map(s=>s.trim()).filter(Boolean);
+  if (!parts.length) return false;
+  const mainName = parts[0];
+  const subNames = parts.slice(1);
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  let assEntry = disc.assuntos.find(a => norm(a.name) === norm(mainName));
+  let changed = false;
+  if (!assEntry) {
+    assEntry = {id: uid(), name: mainName, subassuntos: []};
+    disc.assuntos.push(assEntry);
+    changed = true;
+  }
+  if (!assEntry.subassuntos) assEntry.subassuntos = [];
+  subNames.forEach(sn => {
+    if (!assEntry.subassuntos.some(s => norm(s.name) === norm(sn))) {
+      assEntry.subassuntos.push({id: uid(), name: sn});
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveState();
+    try { renderDiscFull(); } catch(e) {}
+    try { renderDisciplines(); } catch(e) {}
+    try { cronUpdateAssuntosDatalist(); } catch(e) {}
+    if (document.getElementById('assuntos-modal-overlay')?.classList.contains('open') && _assModalDiscId === disc.id) {
+      try { renderAssuntosModal(); } catch(e) {}
+    }
+    flash('📋 TEC: assunto "'+mainName+'" cadastrado em '+disc.name, disc.color || '#22d3ee', 3500);
+  }
+  return changed;
+}
+
 function cronUpdateAssuntosDatalist() {
   const discId = document.getElementById('cron-disc-sel')?.value;
   const d = state.disciplines.find(x => x.id === discId);
@@ -14881,7 +14930,7 @@ function tecExtractKeywords(text) {
   const stop = new Set(['para','pelo','pela','pelos','pelas','pela','sobre','entre','desde','contra','perante','onde','quando','quanto','quanta','quantos','quantas','quem','como','porque','que','dos','das','uma','umas','uns','aos','seu','sua','seus','suas','este','esta','esse','essa','isso','isto','esses','essas','estes','estas','aquele','aquela','aqueles','aquelas','aquilo','meu','minha','meus','minhas','seria','sera','será','foi','são','tem','tinha','tinham','tive','teve','tiveram','ser','estar','está','estão','estava','estavam','tenho','temos','possui','possuem','deve','devem','pode','podem','poderia','poderiam','assim','também','tambem','ainda','apenas','somente','muito','muita','muitos','muitas','pouco','pouca','poucos','poucas','sempre','nunca','jamais','antes','depois','agora','hoje','ontem','amanha','amanhã','aqui','ali','lá','la','cada','toda','todo','todos','todas','outro','outra','outros','outras','mesmo','mesma','mesmos','mesmas','enquanto','porém','porem','contudo','todavia','entretanto','logo','então','entao','portanto','consoante','conforme','segundo','exceto','salvo','não','nao','sim','nem','ou','mas','mais','menos','foram','faz','fez','fazem','fazia','fica','ficam','sendo','tendo','sido','feito','aquele','tudo','nada','algum','alguma','alguns','algumas','nenhum','nenhuma','outros','assinale','correta','incorreta','correto','incorreto','alternativa','alternativas','julgue','seguinte','seguintes','item','itens','enunciado','questão','questao','letra','marque','indique','considere','considerando','observe','analise','assinale-se','julgue-se','acerca','quanto','sobre','referente','relativos','relativa','relativo','relativas','seguinte','seguintes','seguir','abaixo','acima','assertiva','assertivas','proposição','proposições','proposicao','proposicoes','afirmação','afirmações','afirmacao','afirmacoes']);
   const words = String(text)
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g,'') // remove acentos
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // remove acentos
     .replace(/[^a-z0-9\s]/g,' ')
     .split(/\s+/)
     .filter(w => w.length >= 5 && !stop.has(w) && !/^\d+$/.test(w));
@@ -17922,7 +17971,7 @@ window.addEventListener('message', function(e){
   if(e.data.type === 'TEC_QUESTION'){
     var r = e.data.result;
     if(r === 'ping') return;
-    if(r === 'session_info') { cronInvStart(e.data); setTimeout(tecPushStats, 500); return; }
+    if(r === 'session_info') { try{ tecImportAssunto(e.data.materia, e.data.assunto); }catch(x){} cronInvStart(e.data); setTimeout(tecPushStats, 500); return; }
 
     // wrong_fast: só atualiza cronômetro/contador (ainda sem dados do modal)
     if(r === 'wrong_fast'){
@@ -17990,6 +18039,9 @@ window.addEventListener('message', function(e){
       wh.lastErro = new Date().toISOString();
 
       var isReincidente = (wh.erros > 1) || (myErrors > 1);
+
+      // Importa assunto pro sistema de Assuntos da disciplina
+      try{ tecImportAssunto(qMateria, qAssunto); }catch(x){}
 
       // ── 2. Associar disciplina ────────────────────
       var disc = null;
@@ -18078,6 +18130,7 @@ window.addEventListener('message', function(e){
           erros: impErr, myErrors: impErr,
           myTotal: parseInt(e.data.myTotal)||0, datas: [], importado: true
         };
+        try{ tecImportAssunto(e.data.materia, e.data.assunto); }catch(x){}
         if(impErr >= 2){
           frEnsure();
           var alreadyF = (state.filaRevisao||[]).some(function(q){ return q.qid===qImp; });
