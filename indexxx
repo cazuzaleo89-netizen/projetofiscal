@@ -1604,6 +1604,13 @@ select.inp{appearance:none;cursor:pointer;}
 /* ══ CRONÔMETRO NOVO ════════════════════════ */
 .cron-preset{padding:5px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#1f2937;color:#9ca3af;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;transition:all .15s;}
 .cron-preset:hover,.cron-preset.active{background:rgba(74,108,247,.12);border-color:rgba(74,108,247,.4);color:#4a6cf7;}
+.cron-segmented{display:flex;align-items:center;justify-content:center;gap:6px;font-family:'JetBrains Mono','Fira Code','Courier New',monospace;line-height:1;font-variant-numeric:tabular-nums;}
+.cron-seg{display:inline-flex;align-items:center;justify-content:center;min-width:1.7em;padding:8px 10px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.07);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 4px 18px rgba(0,0,0,.35);font-size:clamp(34px,9.5vw,52px);font-weight:300;color:#f1f5f9;letter-spacing:1px;text-shadow:0 0 22px rgba(74,108,247,.32);transition:transform .25s ease;}
+.cron-sep{font-size:clamp(28px,8vw,44px);font-weight:200;color:#475569;opacity:.7;animation:cronTick 1s steps(2,end) infinite paused;}
+.cron-running .cron-sep{animation-play-state:running;}
+.cron-running .cron-seg-s{color:#a5b4fc;text-shadow:0 0 26px rgba(165,180,252,.55);}
+.cron-paused .cron-seg{opacity:.55;filter:saturate(.5);}
+@keyframes cronTick{0%{opacity:.25;}50%{opacity:1;}100%{opacity:.25;}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2498,10 +2505,16 @@ select.inp{appearance:none;cursor:pointer;}
         </div>
 
         <!-- Timer display -->
-        <div style="padding:26px 16px 16px;text-align:center;position:relative;">
-          <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(34,211,238,.06) 0%,transparent 65%);pointer-events:none;"></div>
-          <div id="cron-digits" style="font-family:'Courier New',monospace;font-size:64px;font-weight:200;letter-spacing:8px;color:#f1f5f9;line-height:1;text-shadow:0 0 40px rgba(74,108,247,.35),0 0 80px rgba(74,108,247,.15);">00:00:00</div>
-          <div id="cron-status-lbl" style="font-size:8.5px;color:#475569;margin-top:8px;letter-spacing:2.5px;text-transform:uppercase;">PRONTO PARA ESTUDAR</div>
+        <div style="padding:24px 14px 14px;text-align:center;position:relative;">
+          <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 55%,rgba(74,108,247,.08) 0%,transparent 65%);pointer-events:none;"></div>
+          <div id="cron-digits" class="cron-segmented" style="position:relative;">
+            <span class="cron-seg" id="cron-seg-h">00</span>
+            <span class="cron-sep">:</span>
+            <span class="cron-seg" id="cron-seg-m">00</span>
+            <span class="cron-sep">:</span>
+            <span class="cron-seg cron-seg-s" id="cron-seg-s">00</span>
+          </div>
+          <div id="cron-status-lbl" style="font-size:9px;color:#64748b;margin-top:10px;letter-spacing:2.5px;text-transform:uppercase;font-weight:600;">PRONTO PARA ESTUDAR</div>
         </div>
 
         <!-- Countdown ring (timer mode only) -->
@@ -15975,9 +15988,7 @@ function cronPreset(mins) {
   const inp = document.getElementById('cron-cd-min');
   if (inp) inp.value = mins;
   // Show in digits
-  const m = Math.floor(mins), s = 0;
-  const el = document.getElementById('cron-digits');
-  if (el) el.textContent = `${String(m).padStart(2,'0')}:00:00`;
+  cronSetDigits(Math.floor(mins) * 60);
 }
 
 function cronUpdateDisc() {
@@ -16029,6 +16040,26 @@ function cronFmt(s) {
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function cronSetDigits(secs, color) {
+  if (secs < 0) secs = 0;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const wrap = document.getElementById('cron-digits');
+  if (!wrap) return;
+  const sh = document.getElementById('cron-seg-h');
+  const sm = document.getElementById('cron-seg-m');
+  const ss = document.getElementById('cron-seg-s');
+  if (sh) sh.textContent = String(h).padStart(2,'0');
+  if (sm) sm.textContent = String(m).padStart(2,'0');
+  if (ss) ss.textContent = String(s).padStart(2,'0');
+  if (color) wrap.style.setProperty('--cron-color', color);
+  wrap.querySelectorAll('.cron-seg').forEach(el => { if (color) el.style.color = color; else el.style.removeProperty('color'); });
+  const running = !!(typeof cronState !== 'undefined' && cronState.running);
+  const paused  = !!(typeof cronState !== 'undefined' && cronState.paused);
+  wrap.classList.toggle('cron-running', running && !paused);
+  wrap.classList.toggle('cron-paused',  paused);
 }
 function cronFmtShort(s) {
   if (s < 0) s = 0;
@@ -16286,7 +16317,7 @@ function cronStop() {
   if (assuntoBadge) assuntoBadge.style.display = 'none';
   cronUpdateBtns('idle');
   cronSetBadge('PRONTO','rgba(90,106,138,.2)','#6b7280','rgba(90,106,138,.25)');
-  const digs = document.getElementById('cron-digits'); if(digs){digs.textContent='00:00:00';digs.style.color='#f9fafb';}
+  cronSetDigits(0, '#f9fafb');
   const lbl=document.getElementById('cron-status-lbl'); if(lbl)lbl.textContent='PRONTO PARA ESTUDAR';
   const stats=document.getElementById('cron-stats-row'); if(stats)stats.style.display='none';
   const counts=document.getElementById('cron-count-row'); if(counts)counts.style.display='none';
@@ -16318,14 +16349,12 @@ function cronTick() {
 function cronUpdateUI() {
   const isTimer = cronState.mode === 'timer';
   const secs    = isTimer ? (cronState.total - cronState.elapsed) : cronState.elapsed;
-  const digs = document.getElementById('cron-digits');
-  if (digs) {
-    digs.textContent = cronFmt(secs);
-    if (isTimer) {
-      const pct = secs / cronState.total;
-      digs.style.color = pct<.15?'#f87171':pct<.3?'#fbbf24':'#f9fafb';
-    }
+  let _color = null;
+  if (isTimer && cronState.total > 0) {
+    const pct = secs / cronState.total;
+    _color = pct<.15?'#f87171':pct<.3?'#fbbf24':'#f9fafb';
   }
+  cronSetDigits(secs, _color);
   // Ring update
   if (isTimer) {
     const ring = document.getElementById('cron-ring-fill');
@@ -16579,7 +16608,7 @@ function cronTimeUp() {
   clearInterval(cronState.interval);
   cronSetBadge('TEMPO!','rgba(248,113,113,.2)','#f87171','rgba(248,113,113,.3)');
   const lbl=document.getElementById('cron-status-lbl'); if(lbl)lbl.textContent='⏰ TEMPO ESGOTADO!';
-  const digs=document.getElementById('cron-digits'); if(digs){digs.textContent='00:00:00';digs.style.color='#f87171';}
+  cronSetDigits(0, '#f87171');
   try{const ctx=new(window.AudioContext||window.webkitAudioContext)();[523,659,784,659,523].forEach((f,i)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(0,ctx.currentTime+i*.25);g.gain.linearRampToValueAtTime(.25,ctx.currentTime+i*.25+.05);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+i*.25+.35);o.start(ctx.currentTime+i*.25);o.stop(ctx.currentTime+i*.25+.4);});}catch(e){}
   flash('⏰ Tempo esgotado! Clique ENCERRAR para salvar.','#f0b429');
 }
