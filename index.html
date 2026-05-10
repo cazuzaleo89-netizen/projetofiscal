@@ -14149,12 +14149,15 @@ function frRender() {
 
     const doneList = document.createElement('div');
     doneList.id = 'fr-done-list';
-    doneList.style.cssText = 'display:none;flex-direction:column;gap:.3rem;margin-top:.35rem;';
+    const initOpen = !!window._frDoneOpen;
+    doneList.style.cssText = 'display:'+(initOpen?'flex':'none')+';flex-direction:column;gap:.3rem;margin-top:.35rem;';
+    if (initOpen) toggleRow.querySelector('#fr-done-chevron').textContent = '▼';
 
     toggleRow.onclick = () => {
       const open = doneList.style.display !== 'none';
       doneList.style.display = open ? 'none' : 'flex';
       doneWrap.querySelector('#fr-done-chevron').textContent = open ? '▶' : '▼';
+      window._frDoneOpen = !open;
     };
 
     doneItems.forEach(item => {
