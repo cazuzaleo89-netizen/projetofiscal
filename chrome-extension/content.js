@@ -200,55 +200,88 @@
 
   // ── Widget ────────────────────────────────────────────────────────────────
 
+  let _pfExpanded = false; // hover expande, saída recolhe
+
   function pfFmt(s) {
     if (!s || s < 0) s = 0;
-    const m = Math.floor(s / 60), sc = s % 60;
-    return (m < 60 ? String(m).padStart(2, '0') : Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0')) + ':' + String(sc).padStart(2, '0');
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sc = s % 60;
+    if (h > 0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
+    return `${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
   }
 
   function pfRenderWidget() {
     if (!el) return;
+
+    // Modo ícone puro (minimizado)
     if (_pfMin) {
-      el.innerHTML = '⚡';
-      el.style.padding = '8px 12px'; el.style.fontSize = '16px';
+      el.style.cssText = el.style.cssText.replace(/padding:[^;]+;/, '');
+      el.style.padding = '7px 10px';
+      el.style.borderRadius = '20px';
+      const fila = _pfFila.length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:8px;padding:0 5px;font-size:10px;font-weight:800;">${_pfFila.length}</span>` : '';
+      el.style.position = 'fixed';
+      el.innerHTML = `<span style="position:relative;display:inline-block;font-size:15px;">⚡${fila}</span>`;
       return;
     }
+
     const s = _pfStats;
     const pct = (s.acertos + s.erros) > 0 ? Math.round(s.acertos / (s.acertos + s.erros) * 100) : 0;
     const cor = pct >= 70 ? '#10b981' : pct >= 50 ? '#f0a500' : '#ef4444';
-    const statusIcon = s.paused ? '⏸' : (s.running ? '▶' : '⚡');
-    const filaBadge = _pfFila.length > 0
-      ? `<span style="background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;margin-left:6px;font-size:11px;">📋 ${_pfFila.length}</span>`
-      : '';
-    const statsHtml = (s.acertos + s.erros) > 0
-      ? `<span style="opacity:.7;">|</span><span style="color:#10b981;">✓${s.acertos}</span><span style="color:#ef4444;">✗${s.erros}</span><span style="color:${cor};font-weight:800;">${pct}%</span>`
-      : '';
-    el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;">
-      <span style="font-size:14px;">${statusIcon}</span>
-      <span style="font-family:monospace;font-weight:700;">${pfFmt(s.elapsed)}</span>
-      ${statsHtml}
-      ${filaBadge}
-      <span id="_pfMinBtn" style="margin-left:6px;cursor:pointer;opacity:.6;font-size:14px;">_</span>
-    </div>`;
-    el.style.padding = '8px 14px'; el.style.fontSize = '13px';
-    const minBtn = document.getElementById('_pfMinBtn');
-    if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = !_pfMin; pfRenderWidget(); };
+    const icon = s.paused ? '⏸' : (s.running ? '▶' : '⚡');
+
+    if (!_pfExpanded) {
+      // ── COMPACTO: pílula pequena com ícone + timer ──
+      const dot = _pfFila.length > 0 ? `<span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;margin-left:4px;box-shadow:0 0 5px #ef4444;"></span>` : '';
+      el.style.padding = '5px 11px';
+      el.style.borderRadius = '20px';
+      el.style.fontSize = '11px';
+      el.innerHTML = `<span style="display:flex;align-items:center;gap:5px;font-family:monospace;font-weight:700;letter-spacing:.5px;">${icon} ${pfFmt(s.elapsed)}${dot}</span>`;
+    } else {
+      // ── EXPANDIDO (hover): mostra stats completos ──
+      const filaBadge = _pfFila.length > 0
+        ? `<span style="background:#ef4444;border-radius:10px;padding:1px 6px;font-size:10px;">📋${_pfFila.length}</span>`
+        : '';
+      const statsHtml = (s.acertos + s.erros) > 0
+        ? `<span style="opacity:.6;margin:0 2px;">|</span><span style="color:#10b981;">✓${s.acertos}</span><span style="color:#ef4444;">✗${s.erros}</span><span style="color:${cor};font-weight:800;">${pct}%</span>`
+        : '';
+      el.style.padding = '7px 13px';
+      el.style.borderRadius = '14px';
+      el.style.fontSize = '12px';
+      el.innerHTML = `<div style="display:flex;align-items:center;gap:7px;font-weight:700;">
+        <span>${icon}</span>
+        <span style="font-family:monospace;">${pfFmt(s.elapsed)}</span>
+        ${statsHtml}${filaBadge}
+        <span id="_pfMinBtn" style="opacity:.5;cursor:pointer;font-size:13px;margin-left:2px;">−</span>
+      </div>`;
+      const minBtn = document.getElementById('_pfMinBtn');
+      if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = true; _pfExpanded = false; pfRenderWidget(); };
+    }
   }
 
   function createWidget(connected) {
     if (document.getElementById('_pfBadge')) return;
     el = document.createElement('div');
     el.id = '_pfBadge';
-    el.style.cssText = 'position:fixed;bottom:12px;right:12px;color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:700;z-index:2147483647;cursor:pointer;box-shadow:0 2px 16px rgba(0,0,0,.5);font-family:sans-serif;user-select:none;letter-spacing:.3px;transition:all .3s;';
+    el.style.cssText = 'position:fixed;bottom:14px;right:14px;color:#fff;border-radius:20px;font-weight:700;z-index:2147483647;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.45);font-family:sans-serif;user-select:none;transition:all .25s ease;';
     el.style.background = connected ? 'linear-gradient(135deg,#10b981,#0ea5e9)' : 'linear-gradient(135deg,#f59e0b,#ef4444)';
-    el.title = connected
-      ? 'Monitor ativo (extensão) — clique para abrir painel | Alt+R abre próxima da fila'
-      : 'Painel não encontrado — abra o Painel Fiscal e tente novamente';
+    el.title = 'Painel Fiscal Monitor — passe o mouse para ver stats | clique para abrir painel | duplo clique para desativar';
     if (connected) {
       pfRenderWidget();
     } else {
+      el.style.padding = '6px 12px';
+      el.style.fontSize = '11px';
       el.innerHTML = '⚠ Painel não encontrado';
     }
+    // Hover: expande para mostrar stats
+    el.addEventListener('mouseenter', () => {
+      if (_pfMin) return;
+      _pfExpanded = true;
+      pfRenderWidget();
+    });
+    el.addEventListener('mouseleave', () => {
+      if (_pfMin) return;
+      _pfExpanded = false;
+      pfRenderWidget();
+    });
     el.ondblclick = function () {
       if (confirm('Desativar monitor e remover widget?')) {
         obs.disconnect();
@@ -261,12 +294,18 @@
     };
     el.onclick = function (ev) {
       if (ev.target.id === '_pfMinBtn') return;
-      // Clique simples: abre painel se não estiver aberto
-      if (!_pfw || _pfw.closed) {
-        _pfw = window.open(PANEL_URL, '_pfPanel');
-        setTimeout(() => { sendSession(); setTimeout(scanHistory, 1500); }, 1500);
-      } else {
-        _pfw.focus();
+      if (!_pfMin && _pfExpanded) {
+        // Clique enquanto expandido: abre painel
+        if (!_pfw || _pfw.closed) {
+          _pfw = window.open(PANEL_URL, '_pfPanel');
+          setTimeout(() => { sendSession(); setTimeout(scanHistory, 1500); }, 1500);
+        } else {
+          _pfw.focus();
+        }
+      } else if (_pfMin) {
+        // Clique no ícone minimizado: restaura
+        _pfMin = false;
+        pfRenderWidget();
       }
     };
     document.body.appendChild(el);
