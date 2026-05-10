@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel Fiscal</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 280px;
+    background: #0a0f1e;
+    color: #e8edf8;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #10b981, #0ea5e9);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header-icon { font-size: 22px; }
+  .header-title { font-size: 15px; font-weight: 800; line-height: 1.2; }
+  .header-sub { font-size: 11px; opacity: .8; }
+
+  .body { padding: 12px 14px; }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #161d2e;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #6b7280;
+    flex-shrink: 0;
+  }
+  .status-dot.active { background: #10b981; box-shadow: 0 0 6px #10b981; }
+  .status-dot.warn { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+  .status-text { flex: 1; font-size: 12px; color: #94a3b8; }
+  .status-text strong { color: #e8edf8; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .stat-card {
+    background: #161d2e;
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+  }
+  .stat-val { font-size: 18px; font-weight: 800; }
+  .stat-label { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .stat-card.green .stat-val { color: #10b981; }
+  .stat-card.red .stat-val { color: #ef4444; }
+  .stat-card.cyan .stat-val { color: #22d3ee; }
+
+  .timer-row {
+    background: #161d2e;
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .timer-label { font-size: 11px; color: #64748b; }
+  .timer-val { font-family: monospace; font-size: 18px; font-weight: 800; color: #22d3ee; }
+  .timer-disc { font-size: 11px; color: #94a3b8; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .fila-row {
+    background: rgba(239,68,68,.1);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .fila-row:hover { background: rgba(239,68,68,.2); }
+  .fila-count { font-size: 16px; font-weight: 800; color: #ef4444; }
+  .fila-text { flex: 1; font-size: 11px; color: #fca5a5; }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+    text-align: center;
+    text-decoration: none;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #10b981, #0ea5e9);
+    color: #fff;
+    margin-bottom: 8px;
+  }
+  .btn-primary:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-secondary {
+    background: #161d2e;
+    color: #94a3b8;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .btn-secondary:hover { color: #e8edf8; border-color: rgba(255,255,255,.2); }
+
+  .footer {
+    padding: 8px 14px;
+    border-top: 1px solid rgba(255,255,255,.06);
+    font-size: 10px;
+    color: #374151;
+    text-align: center;
+  }
+  .no-tec {
+    padding: 16px;
+    text-align: center;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .no-tec .icon { font-size: 28px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-icon">⚡</div>
+  <div>
+    <div class="header-title">Painel Fiscal</div>
+    <div class="header-sub">Monitor TEC — Extensão</div>
+  </div>
+</div>
+
+<div class="body">
+  <!-- Estado da conexão -->
+  <div class="status-row">
+    <div class="status-dot" id="status-dot"></div>
+    <div class="status-text" id="status-text">Verificando...</div>
+  </div>
+
+  <!-- Timer + disciplina -->
+  <div class="timer-row" id="timer-row" style="display:none;">
+    <div>
+      <div class="timer-label">Cronômetro</div>
+      <div class="timer-disc" id="pop-disc">—</div>
+    </div>
+    <div class="timer-val" id="pop-timer">00:00:00</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid" style="display:none;">
+    <div class="stat-card green">
+      <div class="stat-val" id="pop-acertos">0</div>
+      <div class="stat-label">Acertos</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-val" id="pop-erros">0</div>
+      <div class="stat-label">Erros</div>
+    </div>
+    <div class="stat-card cyan">
+      <div class="stat-val" id="pop-pct">—</div>
+      <div class="stat-label">Taxa</div>
+    </div>
+  </div>
+
+  <!-- Fila de revisão -->
+  <div class="fila-row" id="fila-row" style="display:none;" onclick="openTec()">
+    <div class="fila-count" id="pop-fila">0</div>
+    <div class="fila-text">revisões pendentes<br><span style="color:#94a3b8;">Alt+R no TEC para abrir</span></div>
+    <div>📋</div>
+  </div>
+
+  <!-- Sem TEC aberto -->
+  <div class="no-tec" id="no-tec">
+    <div class="icon">🎯</div>
+    Abra o TecConcursos para o monitor entrar em ação automaticamente.
+  </div>
+
+  <a class="btn btn-primary" id="btn-painel" href="#" onclick="openPanel()">
+    🖥 Abrir Painel Fiscal
+  </a>
+  <a class="btn btn-secondary" id="btn-tec" href="#" onclick="openTec()" style="display:none;">
+    📝 Focar no TecConcursos
+  </a>
+</div>
+
+<div class="footer">Painel Fiscal Monitor TEC v1.0</div>
+
+<script>
+const PANEL_URL = 'https://cazuzaleo89-netizen.github.io/projetofiscal/';
+
+function fmt(s) {
+  if (!s || s < 0) s = 0;
+  const m = Math.floor(s / 60), sc = s % 60;
+  return (m < 60 ? String(m).padStart(2,'0') : Math.floor(m/60)+':'+String(m%60).padStart(2,'0')) + ':' + String(sc).padStart(2,'0');
+}
+
+async function refresh() {
+  let tecTab = null, panelTab = null, filaCount = 0, stats = null;
+
+  try {
+    const tabs = await chrome.tabs.query({ url: '*://www.tecconcursos.com.br/*' });
+    tecTab = tabs[0] || null;
+  } catch(x) {}
+
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://cazuzaleo89-netizen.github.io/projetofiscal/*' });
+    panelTab = tabs[0] || null;
+  } catch(x) {}
+
+  // Tenta buscar estado via background
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
+    if (res) { filaCount = res.filaCount || 0; }
+  } catch(x) {}
+
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  const noTec = document.getElementById('no-tec');
+  const timerRow = document.getElementById('timer-row');
+  const statsGrid = document.getElementById('stats-grid');
+  const filaRow = document.getElementById('fila-row');
+  const btnTec = document.getElementById('btn-tec');
+
+  if (tecTab) {
+    dot.className = 'status-dot active';
+    txt.innerHTML = `<strong>Monitor ativo</strong> — TEC detectado`;
+    noTec.style.display = 'none';
+    btnTec.style.display = 'block';
+
+    if (filaCount > 0) {
+      filaRow.style.display = 'flex';
+      document.getElementById('pop-fila').textContent = filaCount;
+    }
+  } else {
+    dot.className = 'status-dot warn';
+    txt.innerHTML = `Nenhuma aba do TEC aberta`;
+    noTec.style.display = 'block';
+    btnTec.style.display = 'none';
+    timerRow.style.display = 'none';
+    statsGrid.style.display = 'none';
+    filaRow.style.display = 'none';
+  }
+}
+
+function openPanel() {
+  chrome.tabs.query({ url: 'https://cazuzaleo89-netizen.github.io/projetofiscal/*' }, (tabs) => {
+    if (tabs && tabs.length) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+    } else {
+      chrome.tabs.create({ url: PANEL_URL });
+    }
+  });
+  window.close();
+}
+
+function openTec() {
+  chrome.tabs.query({ url: '*://www.tecconcursos.com.br/*' }, (tabs) => {
+    if (tabs && tabs.length) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+    } else {
+      chrome.tabs.create({ url: 'https://www.tecconcursos.com.br' });
+    }
+  });
+  window.close();
+}
+
+refresh();
+</script>
+</body>
+</html>

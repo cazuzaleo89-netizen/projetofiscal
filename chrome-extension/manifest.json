@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Painel Fiscal — Monitor TEC",
+  "short_name": "PainelFiscal",
+  "version": "1.0.0",
+  "description": "Integração automática entre TecConcursos e o Painel Fiscal. Captura acertos/erros, importa histórico e sincroniza cronômetro sem bookmarklet.",
+  "permissions": [
+    "storage",
+    "notifications",
+    "tabs",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://www.tecconcursos.com.br/*",
+    "*://cazuzaleo89-netizen.github.io/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://www.tecconcursos.com.br/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Painel Fiscal",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": []
+}
