@@ -14136,23 +14136,43 @@ function frRender() {
   if(doneItems.length > 0){
     const doneWrap = document.createElement('div');
     doneWrap.style.cssText = 'margin-top:.5rem;border-top:1px solid var(--border);padding-top:.5rem;';
-    doneWrap.innerHTML = `<button onclick="frToggleDone(this)" style="background:none;border:none;cursor:pointer;font-size:.65rem;color:var(--muted2);font-family:var(--ff);display:flex;align-items:center;gap:.35rem;padding:.2rem 0;width:100%;">
-      <span>▶</span><span>✓ ${doneItems.length} revisada${doneItems.length>1?'s':''} — clique para ver</span>
-      <button onclick="event.stopPropagation();frClearDone()" style="margin-left:auto;background:none;border:1px solid rgba(248,113,113,.2);border-radius:5px;padding:1px 6px;cursor:pointer;font-size:.57rem;color:var(--red);font-family:var(--ff);">🧹 Limpar</button>
-    </button>
-    <div id="fr-done-list" style="display:none;margin-top:.35rem;display:flex;flex-direction:column;gap:.3rem;overflow:hidden;max-height:0;transition:max-height .3s ease;"></div>`;
-    list.appendChild(doneWrap);
-    // Preenche a lista de feitas
-    const doneList = doneWrap.querySelector('#fr-done-list');
+
+    const toggleRow = document.createElement('div');
+    toggleRow.style.cssText = 'display:flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.65rem;color:var(--muted2);padding:.2rem 0;user-select:none;';
+    toggleRow.innerHTML = `<span id="fr-done-chevron" style="font-size:.6rem;">▶</span><span>✓ ${doneItems.length} revisada${doneItems.length>1?'s':''} — clique para ver</span>`;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.style.cssText = 'margin-left:auto;background:none;border:1px solid rgba(248,113,113,.2);border-radius:5px;padding:1px 6px;cursor:pointer;font-size:.57rem;color:var(--red);font-family:var(--ff);';
+    clearBtn.textContent = '🧹 Limpar';
+    clearBtn.onclick = (e) => { e.stopPropagation(); frClearDone(); };
+    toggleRow.appendChild(clearBtn);
+
+    const doneList = document.createElement('div');
+    doneList.id = 'fr-done-list';
+    doneList.style.cssText = 'display:none;flex-direction:column;gap:.3rem;margin-top:.35rem;';
+
+    toggleRow.onclick = () => {
+      const open = doneList.style.display !== 'none';
+      doneList.style.display = open ? 'none' : 'flex';
+      doneWrap.querySelector('#fr-done-chevron').textContent = open ? '▶' : '▼';
+    };
+
     doneItems.forEach(item => {
       const d = document.createElement('div');
       d.style.cssText = 'display:flex;align-items:center;gap:.5rem;background:rgba(16,185,129,.04);border:1px solid rgba(16,185,129,.1);border-radius:8px;padding:.4rem .65rem;opacity:.7;';
       d.innerHTML = `<span style="font-size:.65rem;color:var(--green);">✓</span>
-        <span style="font-size:.65rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted2);">${item.desc||'Questão'}</span>
-        <a href="${item.link}" target="_blank" style="font-size:.58rem;color:var(--cyan);text-decoration:none;">🔗</a>
-        <button onclick="frRemove('${item.id}')" style="background:none;border:none;cursor:pointer;font-size:.6rem;color:var(--muted);font-family:var(--ff);">✕</button>`;
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:.65rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted2);">${item.desc||item.label||'Questão'}</div>
+          <div style="font-size:.58rem;color:var(--muted);margin-top:1px;">${item.discName||'—'} · ${item.doneAt?new Date(item.doneAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</div>
+        </div>
+        <a href="${item.link}" target="_blank" style="font-size:.58rem;color:var(--cyan);text-decoration:none;flex-shrink:0;">🔗</a>
+        <button onclick="frRemove('${item.id}')" style="background:none;border:none;cursor:pointer;font-size:.6rem;color:var(--muted);font-family:var(--ff);flex-shrink:0;">✕</button>`;
       doneList.appendChild(d);
     });
+
+    doneWrap.appendChild(toggleRow);
+    doneWrap.appendChild(doneList);
+    list.appendChild(doneWrap);
   }
 }
 
