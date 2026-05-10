@@ -12,6 +12,23 @@ let panelTabId = null;
 let tecTabId = null;
 let filaCount = 0;
 
+// ── Injeta content script em abas TEC já abertas (após instalar/atualizar) ───
+
+chrome.runtime.onInstalled.addListener(async () => {
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (tab.url && tab.url.includes('tecconcursos.com.br') && tab.id) {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content.js']
+        });
+        tecTabId = tab.id;
+      } catch (e) { /* aba pode estar em estado que não aceita injeção */ }
+    }
+  }
+});
+
 // ── Encontra tab do painel ───────────────────────────────────────────────────
 
 async function findPanelTab() {
