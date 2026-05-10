@@ -3935,12 +3935,12 @@ select.inp{appearance:none;cursor:pointer;}
         </p>
 
         <!-- Header da tabela -->
-        <div style="display:grid;grid-template-columns:36px 1fr 90px 90px 80px;gap:.5rem;align-items:center;padding:.45rem .65rem;margin-bottom:.35rem;font-size:.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">
+        <div style="display:grid;grid-template-columns:36px 1fr 90px 90px 40px;gap:.5rem;align-items:center;padding:.45rem .65rem;margin-bottom:.35rem;font-size:.55rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">
           <div>Cor</div>
           <div>Nome</div>
           <div style="text-align:center;">Meta/Sem</div>
           <div style="text-align:center;">Tempo</div>
-          <div style="text-align:center;">Ações</div>
+          <div style="text-align:center;">Del</div>
         </div>
 
         <!-- Lista de disciplinas -->
@@ -5512,7 +5512,7 @@ function renderDiscFull(){
     const secs=state.sessions.filter(s=>s.subjectId===d.id).reduce((a,b)=>a+b.seconds,0);
     const qTotal=(state.questionSessions||[]).filter(s=>s.subjectId===d.id).reduce((a,s)=>a+s.total,0);
     const row=document.createElement('div');
-    row.style.cssText='display:grid;grid-template-columns:36px 1fr 90px 90px 80px;gap:.5rem;align-items:center;padding:.6rem .65rem;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);transition:all .15s;';
+    row.style.cssText='display:grid;grid-template-columns:36px 1fr 90px 90px 40px;gap:.5rem;align-items:center;padding:.6rem .65rem;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);transition:all .15s;';
     row.onmouseenter=()=>{row.style.borderColor='var(--border2)';row.style.background='var(--surf3)';};
     row.onmouseleave=()=>{row.style.borderColor='var(--border)';row.style.background='var(--surf2)';};
 
@@ -5532,7 +5532,16 @@ function renderDiscFull(){
     nameSpan.textContent=d.name;
     nameSpan.title='Clique para editar';
     nameSpan.onclick=()=>discEditName(d.id, nameSpan);
+    const assCount=(d.assuntos||[]).length;
+    const assChip=document.createElement('button');
+    assChip.style.cssText='flex-shrink:0;background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.25);border-radius:20px;color:var(--cyan);cursor:pointer;font-size:.6rem;font-weight:700;padding:1px 7px;white-space:nowrap;font-family:var(--ff);transition:all .15s;';
+    assChip.textContent='📋 '+(assCount?assCount+' assunto'+(assCount>1?'s':''):'Assuntos');
+    assChip.title='Gerenciar assuntos e subassuntos';
+    assChip.onmouseenter=()=>{assChip.style.background='rgba(34,211,238,.22)';assChip.style.borderColor='rgba(34,211,238,.5)';};
+    assChip.onmouseleave=()=>{assChip.style.background='rgba(34,211,238,.1)';assChip.style.borderColor='rgba(34,211,238,.25)';};
+    assChip.onclick=()=>openAssuntosModal(d.id);
     nameWrap.appendChild(nameSpan);
+    nameWrap.appendChild(assChip);
 
     // Meta semanal (editável)
     const metaWrap=document.createElement('div');
@@ -5551,15 +5560,7 @@ function renderDiscFull(){
 
     // Ações
     const actDiv=document.createElement('div');
-    actDiv.style.cssText='display:flex;align-items:center;justify-content:center;gap:4px;';
-    const assBtn=document.createElement('button');
-    const assCount=(d.assuntos||[]).length;
-    assBtn.style.cssText='background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.72rem;padding:2px 5px;border-radius:4px;transition:all .15s;white-space:nowrap;';
-    assBtn.innerHTML='📋'+(assCount?'<sup style="font-size:.55rem;font-family:var(--mono);margin-left:1px;">'+assCount+'</sup>':'');
-    assBtn.title='Gerenciar assuntos e subassuntos';
-    assBtn.onmouseenter=()=>{assBtn.style.background='rgba(34,211,238,.1)';};
-    assBtn.onmouseleave=()=>{assBtn.style.background='none';};
-    assBtn.onclick=()=>openAssuntosModal(d.id);
+    actDiv.style.cssText='display:flex;align-items:center;justify-content:center;';
     const delBtn=document.createElement('button');
     delBtn.style.cssText='background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:2px 5px;border-radius:4px;transition:all .15s;';
     delBtn.innerHTML='🗑';
