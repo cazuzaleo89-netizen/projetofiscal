@@ -3101,13 +3101,16 @@ select.inp{appearance:none;cursor:pointer;}
 
       <!-- Queue -->
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
           <div class="slabel" style="margin:0;">Fila de Revisão</div>
-          <div style="display:flex;gap:.35rem;">
+          <div style="display:flex;gap:.35rem;flex-wrap:wrap;">
+            <button id="fr-burst-btn" class="btn btn-gold" style="font-size:.65rem;padding:.28rem .65rem;display:none;" onclick="frBurst()" title="Abre todas as PRONTAS em sequência">▶ Rajada</button>
             <button class="btn btn-ghost" style="font-size:.62rem;padding:.22rem .55rem;" onclick="frClearDone()">Limpar revisadas</button>
             <button class="btn btn-danger" style="font-size:.62rem;padding:.22rem .55rem;" onclick="frClearAll()">Limpar tudo</button>
           </div>
         </div>
+        <!-- Stats bar + filter chips são injetados aqui via JS -->
+        <div id="fr-controls"></div>
         <div id="fr-queue-list"></div>
       </div>
 
@@ -13753,6 +13756,7 @@ function frAddQuestion() {
     doneAt:     null,
   };
 
+  item.attempts = [{at: now, action: 'added', intervalMins: mins}];
   state.filaRevisao.unshift(item);
   saveState();
 
@@ -13777,6 +13781,8 @@ function frOpenQuestion(id) {
   item.openedAt = Date.now();
   item.status   = 'done';
   item.doneAt   = Date.now();
+  _frRecord(item, 'opened');
+  _frRecord(item, 'done');
   saveState();
   window.open(item.link, '_blank');
   frRender();
@@ -13789,8 +13795,11 @@ function frMarkDone(id) {
   if (!item) return;
   item.status  = 'done';
   item.doneAt  = Date.now();
+  _frRecord(item, 'done');
   saveState();
   frRender();
+  // Se rajada está rodando, abre a próxima
+  if (_frBurstQueue && _frBurstQueue.length) frBurstNext();
 }
 
 function frRemove(id) {
@@ -13812,6 +13821,90 @@ function frClearAll() {
   state.filaRevisao = [];
   saveState();
   frRender();
+}
+
+// ═══ Helpers de novas features (rajada, snooze, filtros, histórico) ═══
+
+function _frRecord(item, action, meta) {
+  if (!item.attempts) item.attempts = [];
+  item.attempts.push(Object.assign({at: Date.now(), action}, meta || {}));
+}
+
+function _frUiState() {
+  if (!state.filaUi) state.filaUi = {filterDisc: '', filterStatus: '', filterText: ''};
+  return state.filaUi;
+}
+
+function frFilterDisc(id) { _frUiState().filterDisc = id; saveState(); frRender(); }
+function frFilterStatus(s) { _frUiState().filterStatus = s; saveState(); frRender(); }
+function frFilterText(v) { _frUiState().filterText = (v||'').toLowerCase(); frRender(); }
+function frFilterClear() { state.filaUi = {filterDisc:'', filterStatus:'', filterText:''}; saveState(); frRender(); }
+
+function frSnooze(id, mins) {
+  frEnsure();
+  const item = state.filaRevisao.find(q => q.id === id);
+  if (!item) return;
+  const now = Date.now();
+  item.dueAt = now + mins * 60000;
+  item.readyAt = item.dueAt;
+  item.status = 'waiting';
+  _frRecord(item, 'snoozed', {mins});
+  saveState(); frRender();
+  flash('💤 Adiada por '+(mins<60?mins+'min':Math.floor(mins/60)+'h'),'#a78bfa');
+}
+
+function frToggleHistory(id) {
+  if (!window._frHistOpen) window._frHistOpen = {};
+  window._frHistOpen[id] = !window._frHistOpen[id];
+  frRender();
+}
+
+let _frBurstQueue = [];
+function frBurst() {
+  frEnsure();
+  const now = Date.now();
+  const ready = state.filaRevisao.filter(q => q.status === 'ready' || (q.status === 'waiting' && now >= (q.readyAt || q.dueAt || 0)));
+  if (!ready.length) { flash('Nenhuma questão pronta agora.', '#f0b429'); return; }
+  if (!confirm('🚀 Iniciar rajada de '+ready.length+' questão(ões)?\n\nCada uma abrirá em uma aba nova. Marque como ✓ feita pra abrir a próxima.')) return;
+  _frBurstQueue = ready.map(q => q.id);
+  flash('🚀 Rajada iniciada — '+ready.length+' questões','#f59e0b',3000);
+  frBurstNext();
+}
+
+function frBurstNext() {
+  if (!_frBurstQueue || !_frBurstQueue.length) return;
+  const nextId = _frBurstQueue.shift();
+  const item = (state.filaRevisao||[]).find(q => q.id === nextId);
+  if (!item) { frBurstNext(); return; }
+  _frRecord(item, 'burst-opened');
+  saveState();
+  window.open(item.link, '_blank');
+  if (_frBurstQueue.length === 0) {
+    setTimeout(()=>flash('🎉 Última questão da rajada — bom estudo!','#10b981',4000), 200);
+  } else {
+    setTimeout(()=>flash('🚀 Rajada: '+_frBurstQueue.length+' restantes','#22d3ee',3500), 200);
+  }
+}
+
+function frStreak() {
+  frEnsure();
+  const days = new Set();
+  (state.filaRevisao||[]).forEach(q => { if (q.doneAt) days.add(new Date(q.doneAt).toDateString()); });
+  let streak = 0;
+  const d = new Date();
+  while (days.has(d.toDateString())) { streak++; d.setDate(d.getDate()-1); }
+  return streak;
+}
+
+function _frActionLabel(action) {
+  return ({
+    'added':       '➕ Adicionada à fila',
+    'opened':      '🔗 Aberta para revisão',
+    'done':        '✓ Marcada como feita',
+    'reopened':    '↻ Voltou pra fila',
+    'snoozed':     '💤 Adiada',
+    'burst-opened':'🚀 Aberta na rajada',
+  })[action] || action;
 }
 
 function frCheckQueue() {
@@ -14029,6 +14122,7 @@ function frUpdateNavBadge() {
 function frRender() {
   frEnsure();
   const now = Date.now();
+  const ui = _frUiState();
 
   // Populate disc select
   const sel = document.getElementById('fr-disc-sel');
@@ -14036,15 +14130,72 @@ function frRender() {
     state.disciplines.forEach(d => sel.appendChild(new Option(d.name, d.id)));
   }
 
-  // Update KPIs
-  const overdue = state.filaRevisao.filter(q => q.status === 'ready').length;
-  const waiting = state.filaRevisao.filter(q => q.status === 'waiting').length;
+  // Update KPIs (sempre considera tudo, antes do filtro)
+  const overdue = state.filaRevisao.filter(q => q.status === 'ready' || (q.status==='waiting' && now >= (q.readyAt||q.dueAt||0))).length;
+  const waiting = state.filaRevisao.filter(q => q.status === 'waiting' && now < (q.readyAt||q.dueAt||0)).length;
   const todayStr = new Date().toDateString();
-  const done = state.filaRevisao.filter(q => q.status === 'done' && q.doneAt && new Date(q.doneAt).toDateString() === todayStr).length;
+  const doneToday = state.filaRevisao.filter(q => q.status === 'done' && q.doneAt && new Date(q.doneAt).toDateString() === todayStr).length;
+  const expectedToday = state.filaRevisao.filter(q => (q.dueAt && new Date(q.dueAt).toDateString() === todayStr) || (q.doneAt && new Date(q.doneAt).toDateString() === todayStr)).length;
   set('fr-kpi-overdue', overdue);
   set('fr-kpi-waiting', waiting);
-  set('fr-kpi-done', done);
+  set('fr-kpi-done', doneToday);
   frUpdateNavBadge();
+
+  // Update Rajada button
+  const burstBtn = document.getElementById('fr-burst-btn');
+  if (burstBtn) {
+    if (overdue > 0) {
+      burstBtn.style.display = '';
+      burstBtn.textContent = '▶ Rajada ('+overdue+' pronta'+(overdue>1?'s':'')+')';
+    } else {
+      burstBtn.style.display = 'none';
+    }
+  }
+
+  // Stats bar + Filter chips
+  const ctrls = document.getElementById('fr-controls');
+  if (ctrls) {
+    const streak = frStreak();
+    const pct = expectedToday ? Math.round(doneToday/expectedToday*100) : 0;
+    // Disciplinas presentes na fila
+    const discMap = {};
+    state.filaRevisao.forEach(q => { if (q.discId) discMap[q.discId] = q; });
+    const discChips = Object.values(discMap).map(q => {
+      const active = ui.filterDisc === q.discId;
+      return `<button onclick="frFilterDisc('${q.discId}')" style="background:${active?(q.discColor||'var(--cyan)'):'var(--surf2)'};color:${active?'#000':'var(--muted2)'};border:1px solid ${active?(q.discColor||'var(--cyan)'):'var(--border)'};border-radius:14px;padding:2px 9px;cursor:pointer;font-size:.6rem;font-weight:700;font-family:var(--ff);">${(q.discName||'—').replace('Dir. ','')}</button>`;
+    }).join('');
+    const statusChip = (val, lbl, color) => {
+      const active = ui.filterStatus === val;
+      return `<button onclick="frFilterStatus('${val}')" style="background:${active?color:'var(--surf2)'};color:${active?'#000':'var(--muted2)'};border:1px solid ${active?color:'var(--border)'};border-radius:14px;padding:2px 9px;cursor:pointer;font-size:.6rem;font-weight:700;font-family:var(--ff);">${lbl}</button>`;
+    };
+    ctrls.innerHTML = `
+      <!-- Stats bar -->
+      <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);padding:.5rem .75rem;margin-bottom:.6rem;font-size:.66rem;">
+        <span><strong style="color:var(--gold);">Hoje:</strong> ${doneToday}/${expectedToday} <span style="color:var(--muted2);">(${pct}%)</span></span>
+        <div style="flex:1;height:6px;background:var(--surf3);border-radius:3px;overflow:hidden;min-width:80px;max-width:200px;">
+          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));transition:width .3s;"></div>
+        </div>
+        <span style="color:#f59e0b;font-weight:700;">🔥 ${streak}d streak</span>
+        <span style="color:var(--muted);">·</span>
+        <span style="color:var(--red);">🔴 ${overdue} prontas</span>
+        <span style="color:var(--gold);">⏳ ${waiting} aguardando</span>
+      </div>
+
+      <!-- Filtros -->
+      <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem;">
+        <span style="font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;">FILTRAR:</span>
+        <button onclick="frFilterDisc('')" style="background:${!ui.filterDisc?'var(--cyan)':'var(--surf2)'};color:${!ui.filterDisc?'#000':'var(--muted2)'};border:1px solid ${!ui.filterDisc?'var(--cyan)':'var(--border)'};border-radius:14px;padding:2px 10px;cursor:pointer;font-size:.6rem;font-weight:700;font-family:var(--ff);">Todas</button>
+        ${discChips}
+        <span style="width:1px;height:14px;background:var(--border);margin:0 .25rem;"></span>
+        ${statusChip('', 'Qualquer', 'var(--cyan)')}
+        ${statusChip('ready', '🔴 Pronta', 'var(--red)')}
+        ${statusChip('waiting', '⏳ Aguardando', 'var(--gold)')}
+        ${statusChip('done', '✓ Feita', 'var(--green)')}
+        <input type="text" placeholder="🔎 buscar..." value="${(ui.filterText||'').replace(/"/g,'&quot;')}" oninput="frFilterText(this.value)" style="flex:1;max-width:180px;font-size:.6rem;background:var(--surf2);border:1px solid var(--border);border-radius:14px;color:var(--text);padding:2px 10px;outline:none;font-family:var(--ff);"/>
+        ${(ui.filterDisc||ui.filterStatus||ui.filterText)?`<button onclick="frFilterClear()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.65rem;">✕ limpar filtros</button>`:''}
+      </div>
+    `;
+  }
 
   // Render list
   const list = document.getElementById('fr-queue-list');
@@ -14060,16 +14211,35 @@ function frRender() {
     const order = {ready:0, waiting:1, done:2};
     if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status];
     if(a.status==='waiting' && b.status==='waiting'){
-      // reincidentes primeiro dentro de waiting
       if((b.reincidente?1:0) !== (a.reincidente?1:0)) return (b.reincidente?1:0)-(a.reincidente?1:0);
     }
     return a.dueAt - b.dueAt;
   });
 
-  // Collapse de revisadas: agrupa done num toggle
-  const doneItems = sorted.filter(i=>i.status==='done');
-  const activeItems = sorted.filter(i=>i.status!=='done');
+  // Aplicar filtros
+  const passes = (item) => {
+    if (ui.filterDisc && item.discId !== ui.filterDisc) return false;
+    if (ui.filterStatus) {
+      const isReady = item.status === 'ready' || (item.status==='waiting' && now >= (item.readyAt||item.dueAt||0));
+      if (ui.filterStatus === 'ready' && !isReady) return false;
+      if (ui.filterStatus === 'waiting' && (isReady || item.status === 'done')) return false;
+      if (ui.filterStatus === 'done' && item.status !== 'done') return false;
+    }
+    if (ui.filterText) {
+      const hay = ((item.desc||'')+' '+(item.discName||'')+' '+(item.label||'')).toLowerCase();
+      if (!hay.includes(ui.filterText)) return false;
+    }
+    return true;
+  };
+
+  const doneItems   = sorted.filter(i=>i.status==='done').filter(passes);
+  const activeItems = sorted.filter(i=>i.status!=='done').filter(passes);
   list.innerHTML = '';
+
+  if (!activeItems.length && !doneItems.length) {
+    list.innerHTML = `<div class="empty" style="font-size:.75rem;">Nenhuma questão corresponde aos filtros aplicados.</div>`;
+    return;
+  }
   activeItems.forEach(item => {
     const msLeft = item.dueAt - now;
     const secsLeft = Math.max(0, Math.ceil(msLeft / 1000));
@@ -14122,14 +14292,46 @@ function frRender() {
             ? `<span style="font-size:.6rem;color:var(--green);font-weight:700;">✓ Feita</span>`
             : `<button onclick="frOpenQuestion('${item.id}')" style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);padding:.28rem .6rem;cursor:pointer;font-size:.62rem;color:var(--muted2);font-family:var(--ff);" title="Abrir agora sem esperar">↗ Abrir</button>`
         }
-        <div style="display:flex;gap:.25rem;">
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;justify-content:flex-end;">
           ${!isDone ? `<button onclick="frMarkDone('${item.id}')" title="Marcar como revisada" style="background:none;border:1px solid rgba(52,211,153,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--green);">✓</button>` : ''}
+          ${!isDone ? `<div style="position:relative;display:inline-block;" class="fr-snooze-wrap">
+            <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='flex'?'none':'flex'" title="Adiar revisão" style="background:none;border:1px solid rgba(167,139,250,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#a78bfa;">💤</button>
+            <div style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--surf);border:1px solid var(--border2);border-radius:7px;padding:4px;flex-direction:column;gap:2px;z-index:50;min-width:90px;box-shadow:0 6px 16px rgba(0,0,0,.5);">
+              <button onclick="frSnooze('${item.id}',5)" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.65rem;padding:4px 8px;text-align:left;border-radius:4px;font-family:var(--ff);" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background='none'">+5 min</button>
+              <button onclick="frSnooze('${item.id}',15)" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.65rem;padding:4px 8px;text-align:left;border-radius:4px;font-family:var(--ff);" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background='none'">+15 min</button>
+              <button onclick="frSnooze('${item.id}',30)" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.65rem;padding:4px 8px;text-align:left;border-radius:4px;font-family:var(--ff);" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background='none'">+30 min</button>
+              <button onclick="frSnooze('${item.id}',60)" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.65rem;padding:4px 8px;text-align:left;border-radius:4px;font-family:var(--ff);" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background='none'">+1 hora</button>
+              <button onclick="frSnooze('${item.id}',180)" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.65rem;padding:4px 8px;text-align:left;border-radius:4px;font-family:var(--ff);" onmouseenter="this.style.background='var(--surf2)'" onmouseleave="this.style.background='none'">+3 horas</button>
+            </div>
+          </div>` : ''}
+          <button onclick="frToggleHistory('${item.id}')" title="${(item.attempts||[]).length} evento(s) no histórico" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--muted2);">📜${(item.attempts||[]).length>1?'<sup style="font-size:.5rem;margin-left:1px;">'+(item.attempts||[]).length+'</sup>':''}</button>
           <button onclick="cadrOpenModal('${item.id}')" title="Salvar no caderno" style="background:none;border:1px solid rgba(139,92,246,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#a78bfa;">📚</button>
-          <button onclick="tecCadrSearch('${(item.materia||item.discName||'').replace(/'/g,'&apos;')}','${(item.assunto||'').replace(/'/g,'&apos;')}','${(item.desc||'').replace(/'/g,'&apos;').replace(/"/g,'&quot;').slice(0,300)}')" title="Buscar similares no TecConcursos (assunto + palavras-chave do enunciado)" style="background:none;border:1px solid rgba(34,211,238,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#22d3ee;">🔍</button>
+          <button onclick="tecCadrSearch('${(item.materia||item.discName||'').replace(/'/g,'&apos;')}','${(item.assunto||'').replace(/'/g,'&apos;')}','${(item.desc||'').replace(/'/g,'&apos;').replace(/"/g,'&quot;').slice(0,300)}')" title="Buscar similares no TecConcursos" style="background:none;border:1px solid rgba(34,211,238,.3);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#22d3ee;">🔍</button>
           <button onclick="frRemove('${item.id}')" title="Remover" style="background:none;border:1px solid rgba(248,113,113,.25);border-radius:6px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--red);">✕</button>
         </div>
       </div>`;
     list.appendChild(el);
+
+    // Histórico expandido
+    if (window._frHistOpen && window._frHistOpen[item.id]) {
+      const histDiv = document.createElement('div');
+      histDiv.style.cssText = 'margin:-.25rem 0 .5rem 0;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);padding:.5rem .8rem;font-size:.62rem;';
+      const attempts = item.attempts || [];
+      if (!attempts.length) {
+        histDiv.innerHTML = '<div style="color:var(--muted);">Sem eventos registrados ainda.</div>';
+      } else {
+        histDiv.innerHTML = '<div style="color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-size:.55rem;font-weight:700;margin-bottom:.35rem;">📜 Histórico</div>' +
+          attempts.slice().reverse().map((a, i) => {
+            const dt = new Date(a.at);
+            const meta = a.mins ? ' <span style="color:var(--muted);">(+'+a.mins+'min)</span>' : (a.intervalMins ? ' <span style="color:var(--muted);">('+a.intervalMins+'min)</span>' : '');
+            return `<div style="display:flex;align-items:center;gap:.4rem;padding:2px 0;color:var(--muted2);">
+              <span style="font-family:var(--mono);color:var(--muted);font-size:.55rem;min-width:88px;">${dt.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+              <span>${_frActionLabel(a.action)}${meta}</span>
+            </div>`;
+          }).join('');
+      }
+      list.appendChild(histDiv);
+    }
   });
 
   // Bloco de revisadas (sempre visível)
@@ -14212,10 +14414,10 @@ function frReopen(id) {
   item.openedAt = null;
   item.doneAt = null;
   item.addedAt = now;
-  // Reinicia com 15min ou mantém o último intervalo se SM-2 estiver ativo
   item.intervalMins = Math.max(15, Math.floor((item.intervalMins||15)/2));
   item.dueAt = now + item.intervalMins*60000;
   item.readyAt = item.dueAt;
+  _frRecord(item, 'reopened', {intervalMins: item.intervalMins});
   saveState(); frRender(); frUpdateNavBadge();
   flash('↻ "'+(item.desc||'Questão').slice(0,40)+'..." voltou à fila','#f59e0b');
 }
