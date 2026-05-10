@@ -5521,7 +5521,20 @@ function renderDiscFull(){
   list.innerHTML='';
 
   if(!state.disciplines.length){
-    list.innerHTML='<div class="empty" style="padding:1.5rem;font-size:.78rem;">Nenhuma disciplina cadastrada. Clique em <strong>+ Nova Disciplina</strong> para começar!</div>';
+    const hasEditalData = state.edital && (
+      Object.keys(state.edital.weights||{}).length > 0 ||
+      Object.keys(state.edital.topicos||{}).length > 0 ||
+      (state.edital.concurso||'').trim()
+    );
+    list.innerHTML = `
+      <div class="empty" style="padding:1.4rem;font-size:.78rem;line-height:1.6;">
+        Nenhuma disciplina cadastrada ainda.
+        ${hasEditalData ? '<br><strong style="color:var(--gold)">⚠️ Detectei dados do Edital sem disciplinas correspondentes.</strong>' : ''}
+        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.5rem;">
+          <button class="btn btn-gold" onclick="discLoadFromEditalTemplate()" style="justify-content:center;">📥 Carregar disciplinas de um edital</button>
+          <button class="btn" onclick="openAddModal()" style="justify-content:center;">+ Adicionar disciplina manualmente</button>
+        </div>
+      </div>`;
   }
 
   state.disciplines.forEach((d,i)=>{
@@ -5852,6 +5865,73 @@ function assRemoveSub(discId, assId, subId) {
   if (!ass) return;
   ass.subassuntos = (ass.subassuntos||[]).filter(x => x.id !== subId);
   saveState(); renderAssuntosModal();
+}
+
+// Picker de templates de edital prontos — usado quando state.disciplines está vazio
+function discLoadFromEditalTemplate() {
+  if (typeof IMP_TEMPLATES === 'undefined') {
+    flash('Templates indisponíveis — abra a aba Importar Edital.', '#f87171');
+    try { goPage('importar', document.querySelector('.nav-item[onclick*=importar]')); } catch(e) {}
+    return;
+  }
+  const keys = Object.keys(IMP_TEMPLATES);
+  if (!keys.length) {
+    try { goPage('importar', document.querySelector('.nav-item[onclick*=importar]')); } catch(e) {}
+    return;
+  }
+  // Modal simples de seleção
+  let ov = document.getElementById('disc-tpl-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'disc-tpl-overlay';
+    ov.className = 'overlay';
+    ov.style.cssText = 'align-items:flex-start;padding-top:6vh;';
+    ov.onclick = (e) => { if (e.target === ov) ov.classList.remove('open'); };
+    document.body.appendChild(ov);
+  }
+  const opts = keys.map(k => {
+    const t = IMP_TEMPLATES[k];
+    const distHtml = t.disciplinas.map(d=>`<span style="font-size:.55rem;font-weight:700;padding:1px 7px;border-radius:10px;background:${d.cor}20;color:${d.cor};border:1px solid ${d.cor}55;margin:1px 2px;display:inline-block;">${d.nome.replace(/^Dir\.\s*/,'').replace(/Contabilidade\s+/,'Cont. ')} ${d.peso}%</span>`).join('');
+    return `
+      <div class="edital-tpl-card" onclick="discPickEditalTemplate('${k}')" style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);padding:.85rem .9rem;cursor:pointer;transition:all .15s;margin-bottom:.5rem;"
+           onmouseover="this.style.borderColor='var(--gold)';this.style.background='var(--surf3)';"
+           onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--surf2)';">
+        <div style="font-weight:800;font-size:.85rem;margin-bottom:.2rem;">${t.nome}</div>
+        <div style="font-size:.62rem;color:var(--muted2);margin-bottom:.4rem;">Banca: ${t.banca||'—'} · ${t.disciplinas.length} disciplinas</div>
+        <div style="line-height:1.7;">${distHtml}</div>
+      </div>`;
+  }).join('');
+  ov.innerHTML = `
+    <div class="modal" style="max-width:600px;width:96vw;max-height:84vh;overflow-y:auto;">
+      <h3 style="margin:0 0 .3rem;">📥 Carregar disciplinas de edital</h3>
+      <p style="font-size:.7rem;color:var(--muted2);margin:0 0 1rem;line-height:1.55;">Escolha um edital pronto. As disciplinas serão criadas com pesos e tópicos já configurados.</p>
+      ${opts}
+      <button class="btn" style="width:100%;justify-content:center;margin-top:.6rem;" onclick="document.getElementById('disc-tpl-overlay').classList.remove('open')">Cancelar</button>
+    </div>`;
+  ov.classList.add('open');
+}
+function discPickEditalTemplate(key) {
+  const t = (typeof IMP_TEMPLATES !== 'undefined') ? IMP_TEMPLATES[key] : null;
+  if (!t) return;
+  editalEnsure();
+  t.disciplinas.forEach(d => {
+    const exists = state.disciplines.find(x => x.name.toLowerCase() === d.nome.toLowerCase());
+    if (!exists) {
+      const disc = {id: uid(), name: d.nome, color: d.cor, weeklyGoal: d.weeklyGoal||10};
+      state.disciplines.push(disc);
+      state.edital.weights[disc.id] = d.peso;
+      if (!state.edital.topicos) state.edital.topicos = {};
+      state.edital.topicos[disc.id] = d.topicos || [];
+    }
+  });
+  state.edital.concurso = (t.nome||'').split('—')[0].trim();
+  saveState();
+  document.getElementById('disc-tpl-overlay')?.classList.remove('open');
+  try { renderDisciplines(); } catch(e) {}
+  try { renderDiscFull(); } catch(e) {}
+  try { renderEdital(); renderEditalAnalysis(); } catch(e) {}
+  try { renderWeekGrid(); } catch(e) {}
+  flash('✅ '+t.disciplinas.length+' disciplinas carregadas do edital '+(state.edital.concurso||''), '#10b981', 4500);
 }
 
 // Importa um Assunto: vindo do TEC para a disciplina correspondente.
