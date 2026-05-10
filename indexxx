@@ -5568,6 +5568,7 @@ function renderDiscFull(){
     delBtn.onmouseenter=()=>{delBtn.style.color='var(--red)';delBtn.style.background='rgba(248,113,113,.1)';};
     delBtn.onmouseleave=()=>{delBtn.style.color='var(--muted)';delBtn.style.background='none';};
     delBtn.onclick=()=>discDelete(d.id, d.name);
+    actDiv.appendChild(assBtn);
     actDiv.appendChild(delBtn);
 
     row.appendChild(colorBtn);
