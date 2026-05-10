@@ -468,6 +468,10 @@ body::after{
   color:var(--muted2);font-weight:600;font-family:var(--mono);
 }
 .kpi-sub{font-size:.65rem;color:var(--muted3);margin-top:.3rem;}
+.kpi-trend{font-size:.58rem;margin-top:2px;font-weight:700;}
+.kpi-trend.up{color:var(--green);}
+.kpi-trend.dn{color:var(--red);}
+.kpi-trend.eq{color:var(--muted2);}
 
 /* ── GRID LAYOUTS ─────────────────────────────── */
 .two-col{display:grid;grid-template-columns:1fr 320px;gap:1.25rem;align-items:start;}
@@ -2175,9 +2179,9 @@ select.inp{appearance:none;cursor:pointer;}
         </div>
       </div>
     </div>
-    <!-- Mini activity chart (last 7 days) -->
-    <div style="margin-top:1rem;display:flex;align-items:flex-end;gap:3px;height:40px;" id="dash-activity-bars"></div>
-    <div style="display:flex;justify-content:space-between;font-size:.48rem;color:var(--muted);margin-top:4px;letter-spacing:.5px;" id="dash-activity-labels"></div>
+    <!-- Mini activity heatmap (last 30 days) -->
+    <div id="dash-heatmap" style="display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin-top:.85rem;"></div>
+    <div id="dash-heatmap-labels" style="display:flex;justify-content:space-between;font-size:.48rem;color:var(--muted);margin-top:3px;"></div>
   </div>
 
       <!-- Extension import banner -->
@@ -2199,25 +2203,36 @@ select.inp{appearance:none;cursor:pointer;}
       <div class="kpi-val" id="d-total">0h</div>
       <div class="kpi-label">Horas Totais</div>
       <div class="kpi-sub" id="d-total-sub">—</div>
+      <div class="kpi-trend eq" id="d-trend-total"></div>
     </div>
     <div class="kpi cyan">
       <span class="kpi-icon">◎</span>
       <div class="kpi-val" id="d-sessions">0</div>
       <div class="kpi-label">Sessões</div>
       <div class="kpi-sub" id="d-sessions-sub">—</div>
+      <div class="kpi-trend eq" id="d-trend-sessions"></div>
     </div>
     <div class="kpi green">
       <span class="kpi-icon">◉</span>
       <div class="kpi-val" id="d-rate">—</div>
       <div class="kpi-label">Taxa de Acerto</div>
       <div class="kpi-sub" id="d-rate-sub">—</div>
+      <div class="kpi-trend eq" id="d-trend-rate"></div>
     </div>
     <div class="kpi purple">
       <span class="kpi-icon fire">🔥</span>
       <div class="kpi-val" id="d-streak">0</div>
       <div class="kpi-label">Dias Seguidos</div>
       <div class="kpi-sub">Sequência ativa</div>
+      <div class="kpi-trend eq" id="d-trend-streak"></div>
     </div>
+  </div>
+
+  <div id="dash-quick-actions" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.1rem;">
+    <button class="btn btn-gold" onclick="goPage('cronometro',document.querySelector('.nav-item[onclick*=cronometro]'))" style="flex:1;min-width:140px;justify-content:center;font-size:.78rem;padding:.55rem .9rem;">▶ Iniciar Sessão</button>
+    <button id="dash-qa-fila" class="btn" onclick="goPage('filarev',document.querySelector('.nav-item[onclick*=filarev]'))" style="flex:1;min-width:140px;justify-content:center;font-size:.78rem;padding:.55rem .9rem;">📋 Fila de Revisão</button>
+    <button class="btn" onclick="goPage('sessao',document.querySelector('.nav-item[onclick*=sessao]'))" style="flex:1;min-width:140px;justify-content:center;font-size:.78rem;padding:.55rem .9rem;">🎯 Sessão de Questões</button>
+    <button class="btn" onclick="goPage('problemáticas',document.querySelector('.nav-item[onclick*=problem]'))" style="flex:1;min-width:140px;justify-content:center;font-size:.78rem;padding:.55rem .9rem;">⚠️ Reincidências</button>
   </div>
 
   <div class="two-col">
@@ -2282,6 +2297,15 @@ select.inp{appearance:none;cursor:pointer;}
         <div class="slabel">Últimas Sessões</div>
         <div class="log-list" id="d-recent-list"><div class="empty">Nenhuma sessão ainda. Comece! 🚀</div></div>
       </div>
+
+      <!-- Disciplinas — Semana -->
+      <div class="card" style="margin-bottom:1.1rem;" id="dash-disc-cards-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;">
+          <div class="slabel" style="margin:0;">📚 Disciplinas — Semana</div>
+          <button class="btn btn-ghost" style="font-size:.6rem;padding:.22rem .5rem;" onclick="goPage('disciplinas',document.querySelector('.nav-item[onclick*=disciplinas]'))">Gerenciar →</button>
+        </div>
+        <div id="dash-disc-cards" style="display:flex;flex-direction:column;gap:.4rem;"></div>
+      </div>
     </div>
 
     <!-- RIGHT -->
@@ -2334,6 +2358,15 @@ select.inp{appearance:none;cursor:pointer;}
           <span style="font-size:.58rem;color:var(--muted2);" id="dash-plan-subtitle">Baseado no edital + desempenho</span>
         </div>
         <div id="dash-plano-list"><div class="empty" style="font-size:.7rem;">Configure disciplinas para gerar o plano.</div></div>
+      </div>
+
+      <!-- Próximas Revisões preview -->
+      <div class="card" style="margin-bottom:1.1rem;" id="dash-fila-preview-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem;">
+          <div class="slabel" style="margin:0;">⏱ Próximas Revisões</div>
+          <button class="btn btn-ghost" style="font-size:.6rem;padding:.22rem .5rem;" onclick="goPage('filarev',document.querySelector('.nav-item[onclick*=filarev]'))">Ver fila →</button>
+        </div>
+        <div id="dash-fila-preview"></div>
       </div>
 
       <div class="card" style="margin-bottom:1.1rem;">
@@ -5180,6 +5213,38 @@ function updateStats(){
     if(badge){ badge.textContent=due; badge.style.display=due>0?'':'none'; }
   }catch(e){}
 
+  // Trend semanal
+  try{
+    const nowMs = Date.now();
+    const startThisWeek = nowMs - 7*86400000;
+    const startLastWeek = nowMs - 14*86400000;
+    const thisWkS = state.sessions.filter(s=>new Date(s.date).getTime()>=startThisWeek).reduce((a,b)=>a+b.seconds,0);
+    const lastWkS = state.sessions.filter(s=>{const t=new Date(s.date).getTime();return t>=startLastWeek&&t<startThisWeek;}).reduce((a,b)=>a+b.seconds,0);
+    const thisWkQ = (state.questionSessions||[]).filter(s=>new Date(s.date).getTime()>=startThisWeek).reduce((a,s)=>a+s.total,0);
+    const lastWkQ = (state.questionSessions||[]).filter(s=>{const t=new Date(s.date).getTime();return t>=startLastWeek&&t<startLastWeek+7*86400000;}).reduce((a,s)=>a+s.total,0);
+    const setTrend = (id, cur, prev) => {
+      const el = document.getElementById(id); if(!el) return;
+      if(!prev&&!cur){el.textContent=''; el.className='kpi-trend eq'; return;}
+      if(!prev){el.textContent='↑ novo'; el.className='kpi-trend up'; return;}
+      const diff = Math.round((cur-prev)/prev*100);
+      el.textContent = diff>0?`↑ ${diff}% vs sem. ant.`:diff<0?`↓ ${Math.abs(diff)}% vs sem. ant.`:'= sem. ant.';
+      el.className = 'kpi-trend '+(diff>0?'up':diff<0?'dn':'eq');
+    };
+    setTrend('d-trend-total', thisWkS, lastWkS);
+    setTrend('d-trend-sessions', thisWkQ, lastWkQ);
+  }catch(e){}
+
+  // Quick Actions fila badge
+  try{
+    const qaFila = document.getElementById('dash-qa-fila');
+    if(qaFila){
+      const filaDue=(state.filaRevisao||[]).filter(f=>f.status!=='done'&&Date.now()>=(f.readyAt||f.dueAt||0)).length;
+      qaFila.textContent = filaDue>0?`📋 Fila (${filaDue} prontas)`:'📋 Fila de Revisão';
+      qaFila.style.borderColor = filaDue>0?'rgba(239,68,68,.4)':'';
+      qaFila.style.color = filaDue>0?'var(--red)':'';
+    }
+  }catch(e){}
+
   // Dashboard edital strip
   try{ renderDashEdital(); }catch(e){}
   // Dashboard hero
@@ -5188,6 +5253,10 @@ function updateStats(){
   try{ dashDiagnostic(); }catch(e){}
   try{ dashPlanoDia(); }catch(e){}
   try{ dashTecCriticos(); }catch(e){}
+  // Disciplinas — Semana
+  try{ dashDiscCards(); }catch(e){}
+  // Fila preview
+  try{ dashFilaPreview(); }catch(e){}
 }
 
 function dashUpdateHero(todS, wkS){
@@ -5234,34 +5303,76 @@ function dashUpdateHero(todS, wkS){
   const _acertoEl=el('dash-acerto-quick');
   if(_acertoEl){_acertoEl.textContent=_acerto;_acertoEl.style.color=_tQ>0&&_cQ/_tQ>=.7?'var(--green)':_tQ>0&&_cQ/_tQ>=.5?'var(--gold)':'var(--red)';}
 
-  // Activity bars (last 7 days)
-  const barsEl=el('dash-activity-bars');
-  const labelsEl=el('dash-activity-labels');
-  if(!barsEl||!labelsEl) return;
-
-  const days=[];
-  const dayNames=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  for(let i=6;i>=0;i--){
-    const d=new Date(); d.setDate(d.getDate()-i);
-    const ds=d.toDateString();
-    const secs=state.sessions.filter(s=>new Date(s.date).toDateString()===ds).reduce((a,s)=>a+s.seconds,0);
-    days.push({label:dayNames[d.getDay()], secs, isToday:i===0});
+  // Heatmap 30 dias
+  const hmEl = document.getElementById('dash-heatmap');
+  const hmLabels = document.getElementById('dash-heatmap-labels');
+  if(hmEl){
+    hmEl.innerHTML = '';
+    const today30 = new Date(); today30.setHours(0,0,0,0);
+    let maxSecs = 0;
+    const daySecs = [];
+    for(let i=29;i>=0;i--){
+      const d = new Date(today30); d.setDate(d.getDate()-i);
+      const ds = d.toDateString();
+      const s = (state.sessions||[]).filter(x=>new Date(x.date).toDateString()===ds).reduce((a,b)=>a+b.seconds,0);
+      daySecs.push({d, ds, s});
+      if(s>maxSecs) maxSecs=s;
+    }
+    const goalSecs = (state.dailyGoal||4)*3600;
+    daySecs.forEach(({d,ds,s})=>{
+      const cell = document.createElement('div');
+      const pct = maxSecs>0?s/maxSecs:0;
+      const isToday = ds===new Date().toDateString();
+      const opacity = s===0?0.06:Math.max(0.15,pct*0.85+0.15);
+      const color = s>=goalSecs?'var(--green)':s>0?'var(--gold)':'var(--muted)';
+      cell.style.cssText = `height:10px;border-radius:2px;background:${color};opacity:${opacity};cursor:default;transition:opacity .2s;${isToday?'box-shadow:0 0 0 1px var(--cyan);':''}`;
+      const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+      cell.title = `${d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}: ${h}h${m?m+'min':''}`;
+      hmEl.appendChild(cell);
+    });
+    if(hmLabels){
+      hmLabels.innerHTML = `<span>${daySecs[0].d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span><span>${daySecs[14].d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span><span>${daySecs[29].d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}</span>`;
+    }
   }
-  const maxSecs=Math.max(...days.map(d=>d.secs),1);
+}
 
-  barsEl.innerHTML=days.map(d=>{
-    const pct=Math.max(4,d.secs/maxSecs*100);
-    const hrs=Math.floor(d.secs/3600);
-    const mins=Math.floor((d.secs%3600)/60);
-    const tooltip=d.secs>0?`${hrs}h${String(mins).padStart(2,'0')}m`:'—';
-    const color=d.isToday?'var(--gold)':d.secs>0?'var(--cyan)':'var(--border2)';
-    const opacity=d.secs>0?'1':'0.4';
-    return `<div style="flex:1;height:${pct}%;background:${color};border-radius:3px;opacity:${opacity};transition:all .3s;cursor:default;" title="${d.label}: ${tooltip}"></div>`;
+function dashDiscCards(){
+  const el=document.getElementById('dash-disc-cards'); if(!el)return;
+  if(!state.disciplines||!state.disciplines.length){el.innerHTML='<div class="empty" style="font-size:.7rem;">Cadastre disciplinas para ver o progresso.</div>';return;}
+  const now=Date.now(), weekAgo=now-7*86400000;
+  el.innerHTML='';
+  state.disciplines.forEach(d=>{
+    const secsWk=state.sessions.filter(s=>s.subjectId===d.id&&new Date(s.date).getTime()>=weekAgo).reduce((a,b)=>a+b.seconds,0);
+    const goalSecs=(d.weeklyGoal||10)*3600;
+    const pct=Math.min(100,Math.round(secsWk/goalSecs*100));
+    const color=pct>=100?'var(--green)':pct>=60?'var(--gold)':d.color;
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:.55rem;';
+    row.innerHTML=`<div style="width:8px;height:8px;border-radius:50%;background:${d.color};flex-shrink:0;box-shadow:0 0 5px ${d.color}66;"></div><div style="flex:1;min-width:0;"><div style="display:flex;justify-content:space-between;margin-bottom:2px;"><span style="font-size:.7rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d.name}</span><span style="font-family:var(--mono);font-size:.65rem;color:${color};flex-shrink:0;margin-left:.35rem;">${formatHM(secsWk)} / ${d.weeklyGoal||10}h</span></div><div class="pbar" style="height:5px;"><div class="pfill" style="width:${pct}%;background:${color};"></div></div></div>`;
+    el.appendChild(row);
+  });
+}
+
+function dashFilaPreview(){
+  const el=document.getElementById('dash-fila-preview'); if(!el)return;
+  const all=(state.filaRevisao||[]).filter(f=>f.status!=='done');
+  if(!all.length){el.innerHTML='<div class="empty" style="font-size:.7rem;">Fila vazia — nenhuma revisão pendente.</div>';return;}
+  const now=Date.now();
+  const due=all.filter(f=>now>=(f.readyAt||f.dueAt||0)).sort((a,b)=>(a.dueAt||0)-(b.dueAt||0));
+  const upcoming=all.filter(f=>now<(f.readyAt||f.dueAt||0)).sort((a,b)=>(a.dueAt||0)-(b.dueAt||0));
+  const items=[...due.slice(0,2),...upcoming.slice(0,2)];
+  if(!items.length){el.innerHTML='<div class="empty" style="font-size:.7rem;">Nenhuma revisão pendente agora.</div>';return;}
+  el.innerHTML=items.map(f=>{
+    const isDue=now>=(f.readyAt||f.dueAt||0);
+    const timeStr=isDue?'<span style="color:var(--red);font-weight:700;">Pronta!</span>':(()=>{
+      const mins=Math.round(((f.readyAt||f.dueAt||0)-now)/60000);
+      return mins<60?`em ${mins}min`:`em ${Math.floor(mins/60)}h${mins%60?String(mins%60).padStart(2,'0')+'min':''}`;
+    })();
+    return `<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:8px;background:${isDue?'rgba(239,68,68,.07)':'var(--surf2)'};border:1px solid ${isDue?'rgba(239,68,68,.25)':'var(--border)'};margin-bottom:.3rem;"><div style="width:6px;height:6px;border-radius:50%;background:${f.discColor||'#5a6a8a'};flex-shrink:0;"></div><div style="flex:1;min-width:0;font-size:.68rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.desc||'Questão'}</div><div style="font-size:.58rem;flex-shrink:0;color:var(--muted2);">${timeStr}</div></div>`;
   }).join('');
-
-  labelsEl.innerHTML=days.map(d=>
-    `<span style="flex:1;text-align:center;${d.isToday?'color:var(--gold);font-weight:700;':''}">${d.label}</span>`
-  ).join('');
+  if(due.length>2||upcoming.length>2){
+    el.innerHTML+=`<div style="font-size:.62rem;color:var(--muted2);text-align:center;margin-top:.2rem;">+${all.length-items.length} na fila</div>`;
+  }
 }
 
 function renderDashEdital(){
