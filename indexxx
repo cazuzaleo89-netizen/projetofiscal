@@ -5485,8 +5485,9 @@ function renderDisciplines(){
   list.innerHTML='';sel.innerHTML='<option value="">— escolha —</option>';slotSel.innerHTML='<option value="">— vazio —</option>';
   state.disciplines.forEach(d=>{
     const secs=state.sessions.filter(s=>s.subjectId===d.id).reduce((a,b)=>a+b.seconds,0);
+    const assCount=(d.assuntos||[]).length;
     const item=document.createElement('div');item.className='disc-item';
-    item.innerHTML=`<div style="width:9px;height:9px;border-radius:50%;background:${d.color};flex-shrink:0;box-shadow:0 0 7px ${d.color}66"></div><div style="flex:1;font-size:.8rem;font-weight:700">${d.name}</div><div style="font-family:var(--mono);font-size:.65rem;color:var(--muted)">${formatHM(secs)}</div><button onclick="removeDiscipline('${d.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.88rem;padding:0 3px">×</button>`;
+    item.innerHTML=`<div style="width:9px;height:9px;border-radius:50%;background:${d.color};flex-shrink:0;box-shadow:0 0 7px ${d.color}66"></div><div style="flex:1;font-size:.8rem;font-weight:700">${d.name}</div><div style="font-family:var(--mono);font-size:.65rem;color:var(--muted)">${formatHM(secs)}</div><button onclick="openAssuntosModal('${d.id}')" title="Assuntos e subassuntos" style="background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.78rem;padding:0 4px">📋${assCount?'<sup style=\"font-size:.55rem;font-family:var(--mono);margin-left:1px;\">'+assCount+'</sup>':''}</button><button onclick="removeDiscipline('${d.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.88rem;padding:0 3px">×</button>`;
     list.appendChild(item);sel.appendChild(new Option(d.name,d.id));slotSel.appendChild(new Option(d.name,d.id));
   });
   if(prev)sel.value=prev;syncQDisciplineSelects();renderSpeedSettings();
@@ -15629,6 +15630,8 @@ function cronInit() {
   cronUpdateTodayLog();
   // Init manual register form
   cronManualInit();
+  // Populate assunto autocomplete for saved discipline
+  try { cronUpdateAssuntosDatalist(); } catch(e) {}
 }
 
 function cronSwitchMode(mode) {
