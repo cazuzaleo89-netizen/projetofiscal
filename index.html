@@ -5516,18 +5516,25 @@ function setStyle(id,p,v){const e=document.getElementById(id);if(e)e.style[p]=v;
 
 // ═══ DISCIPLINES ══════════════════════════════
 function renderDisciplines(){
-  const list=document.getElementById('discipline-list'),sel=document.getElementById('active-subject-select'),slotSel=document.getElementById('slot-subject-select'),prev=sel.value;
-  list.innerHTML='';sel.innerHTML='<option value="">— escolha —</option>';slotSel.innerHTML='<option value="">— vazio —</option>';
+  const list=document.getElementById('discipline-list');
+  const sel=document.getElementById('active-subject-select');
+  const slotSel=document.getElementById('slot-subject-select');
+  const prev=sel?sel.value:'';
+  if(list){list.innerHTML='';}
+  if(sel){sel.innerHTML='<option value="">— escolha —</option>';}
+  if(slotSel){slotSel.innerHTML='<option value="">— vazio —</option>';}
   state.disciplines.forEach(d=>{
     const secs=state.sessions.filter(s=>s.subjectId===d.id).reduce((a,b)=>a+b.seconds,0);
     const assCount=(d.assuntos||[]).length;
     const item=document.createElement('div');item.className='disc-item';
     item.innerHTML=`<div style="width:9px;height:9px;border-radius:50%;background:${d.color};flex-shrink:0;box-shadow:0 0 7px ${d.color}66"></div><div style="flex:1;font-size:.8rem;font-weight:700">${d.name}</div><div style="font-family:var(--mono);font-size:.65rem;color:var(--muted)">${formatHM(secs)}</div><button onclick="openAssuntosModal('${d.id}')" title="Assuntos e subassuntos" style="background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.78rem;padding:0 4px">📋${assCount?'<sup style=\"font-size:.55rem;font-family:var(--mono);margin-left:1px;\">'+assCount+'</sup>':''}</button><button onclick="removeDiscipline('${d.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.88rem;padding:0 3px">×</button>`;
-    list.appendChild(item);sel.appendChild(new Option(d.name,d.id));slotSel.appendChild(new Option(d.name,d.id));
+    if(list)list.appendChild(item);
+    if(sel)sel.appendChild(new Option(d.name,d.id));
+    if(slotSel)slotSel.appendChild(new Option(d.name,d.id));
   });
-  if(prev)sel.value=prev;syncQDisciplineSelects();renderSpeedSettings();
+  if(sel&&prev)sel.value=prev;syncQDisciplineSelects();renderSpeedSettings();
 }
-function removeDiscipline(id){state.disciplines=state.disciplines.filter(d=>d.id!==id);saveState();renderDisciplines();renderProgress();}
+function removeDiscipline(id){state.disciplines=state.disciplines.filter(d=>d.id!==id);saveState();renderDisciplines();renderDiscFull();renderProgress();}
 function openAddModal(){document.getElementById('modal-name').value='';document.getElementById('modal-goal').value=10;document.getElementById('modal-overlay').classList.add('open');}
 function closeModal(e){if(!e||e.target===document.getElementById('modal-overlay'))document.getElementById('modal-overlay').classList.remove('open');}
 function addDiscipline(){const name=document.getElementById('modal-name').value.trim();if(!name){flash('Digite o nome!','#f0b429');return;}state.disciplines.push({id:uid(),name,color:selColor,weeklyGoal:parseInt(document.getElementById('modal-goal').value)||10});document.getElementById('modal-overlay').classList.remove('open');saveState();renderDisciplines();renderDiscFull();renderWeekGrid();flash('Disciplina adicionada!','#10b981');}
