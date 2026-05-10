@@ -185,14 +185,23 @@
   </div>
 
   <!-- Sem TEC aberto -->
-  <div class="no-tec" id="no-tec">
+  <div class="no-tec" id="no-tec" style="display:none;">
     <div class="icon">🎯</div>
     Abra o TecConcursos para o monitor entrar em ação automaticamente.
+  </div>
+
+  <!-- TEC aberto mas sem content script (aba já estava aberta antes da instalação) -->
+  <div class="no-tec" id="needs-reload" style="display:none;">
+    <div class="icon">🔄</div>
+    Aba TEC detectada! Recarregue-a para ativar o monitor.
   </div>
 
   <a class="btn btn-primary" id="btn-painel" href="#" onclick="openPanel()">
     🖥 Abrir Painel Fiscal
   </a>
+  <button class="btn btn-secondary" id="btn-reload" onclick="reloadTec()" style="display:none;margin-bottom:8px;">
+    🔄 Recarregar aba TEC
+  </button>
   <a class="btn btn-secondary" id="btn-tec" href="#" onclick="openTec()" style="display:none;">
     📝 Focar no TecConcursos
   </a>
@@ -202,81 +211,116 @@
 
 <script>
 const PANEL_URL = 'https://cazuzaleo89-netizen.github.io/projetofiscal/';
+const TEC_ORIGIN = 'tecconcursos.com.br';
 
-function fmt(s) {
-  if (!s || s < 0) s = 0;
-  const m = Math.floor(s / 60), sc = s % 60;
-  return (m < 60 ? String(m).padStart(2,'0') : Math.floor(m/60)+':'+String(m%60).padStart(2,'0')) + ':' + String(sc).padStart(2,'0');
+// Encontra aba por URL manualmente (mais confiável que query por URL pattern)
+async function findTab(origin) {
+  const all = await chrome.tabs.query({});
+  return all.find(t => t.url && t.url.includes(origin)) || null;
+}
+
+// Testa se o content script está rodando na aba
+async function pingContent(tabId) {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), 600);
+    try {
+      chrome.tabs.sendMessage(tabId, { type: 'PING' }, (resp) => {
+        clearTimeout(timer);
+        resolve(!!resp);
+      });
+    } catch(x) { clearTimeout(timer); resolve(false); }
+  });
 }
 
 async function refresh() {
-  let tecTab = null, panelTab = null, filaCount = 0, stats = null;
-
-  try {
-    const tabs = await chrome.tabs.query({ url: '*://www.tecconcursos.com.br/*' });
-    tecTab = tabs[0] || null;
-  } catch(x) {}
-
-  try {
-    const tabs = await chrome.tabs.query({ url: 'https://cazuzaleo89-netizen.github.io/projetofiscal/*' });
-    panelTab = tabs[0] || null;
-  } catch(x) {}
-
-  // Tenta buscar estado via background
-  try {
-    const res = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
-    if (res) { filaCount = res.filaCount || 0; }
-  } catch(x) {}
-
   const dot = document.getElementById('status-dot');
   const txt = document.getElementById('status-text');
   const noTec = document.getElementById('no-tec');
+  const needsReload = document.getElementById('needs-reload');
   const timerRow = document.getElementById('timer-row');
   const statsGrid = document.getElementById('stats-grid');
   const filaRow = document.getElementById('fila-row');
   const btnTec = document.getElementById('btn-tec');
+  const btnReload = document.getElementById('btn-reload');
+
+  let filaCount = 0;
+  let tecTab = null;
+  let contentActive = false;
+
+  try { tecTab = await findTab(TEC_ORIGIN); } catch(x) {}
 
   if (tecTab) {
-    dot.className = 'status-dot active';
-    txt.innerHTML = `<strong>Monitor ativo</strong> — TEC detectado`;
-    noTec.style.display = 'none';
-    btnTec.style.display = 'block';
+    contentActive = await pingContent(tecTab.id);
+  }
 
-    if (filaCount > 0) {
-      filaRow.style.display = 'flex';
-      document.getElementById('pop-fila').textContent = filaCount;
-    }
-  } else {
+  // Busca filaCount do background
+  try {
+    const res = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), 800);
+      chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (r) => {
+        clearTimeout(t);
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(r);
+      });
+    });
+    if (res) filaCount = res.filaCount || 0;
+  } catch(x) {}
+
+  if (!tecTab) {
     dot.className = 'status-dot warn';
-    txt.innerHTML = `Nenhuma aba do TEC aberta`;
+    txt.innerHTML = 'Nenhuma aba do TEC aberta';
     noTec.style.display = 'block';
+    needsReload.style.display = 'none';
+    btnTec.style.display = 'none';
+    btnReload.style.display = 'none';
+    timerRow.style.display = 'none';
+    statsGrid.style.display = 'none';
+    filaRow.style.display = 'none';
+  } else if (!contentActive) {
+    dot.className = 'status-dot warn';
+    txt.innerHTML = '<strong>TEC detectado</strong> — recarregue a aba';
+    noTec.style.display = 'none';
+    needsReload.style.display = 'block';
+    btnReload.style.display = 'block';
     btnTec.style.display = 'none';
     timerRow.style.display = 'none';
     statsGrid.style.display = 'none';
     filaRow.style.display = 'none';
+  } else {
+    dot.className = 'status-dot active';
+    txt.innerHTML = '<strong>Monitor ativo ⚡</strong>';
+    noTec.style.display = 'none';
+    needsReload.style.display = 'none';
+    btnReload.style.display = 'none';
+    btnTec.style.display = 'block';
+    if (filaCount > 0) {
+      filaRow.style.display = 'flex';
+      document.getElementById('pop-fila').textContent = filaCount;
+    }
   }
 }
 
 function openPanel() {
-  chrome.tabs.query({ url: 'https://cazuzaleo89-netizen.github.io/projetofiscal/*' }, (tabs) => {
-    if (tabs && tabs.length) {
-      chrome.tabs.update(tabs[0].id, { active: true });
-    } else {
-      chrome.tabs.create({ url: PANEL_URL });
-    }
+  findTab('cazuzaleo89-netizen.github.io').then(tab => {
+    if (tab) chrome.tabs.update(tab.id, { active: true });
+    else chrome.tabs.create({ url: PANEL_URL });
+    window.close();
   });
-  window.close();
 }
 
 function openTec() {
-  chrome.tabs.query({ url: '*://www.tecconcursos.com.br/*' }, (tabs) => {
-    if (tabs && tabs.length) {
-      chrome.tabs.update(tabs[0].id, { active: true });
-    } else {
-      chrome.tabs.create({ url: 'https://www.tecconcursos.com.br' });
-    }
+  findTab(TEC_ORIGIN).then(tab => {
+    if (tab) chrome.tabs.update(tab.id, { active: true });
+    else chrome.tabs.create({ url: 'https://www.tecconcursos.com.br' });
+    window.close();
   });
-  window.close();
+}
+
+function reloadTec() {
+  findTab(TEC_ORIGIN).then(tab => {
+    if (tab) chrome.tabs.reload(tab.id);
+    window.close();
+  });
 }
 
 refresh();

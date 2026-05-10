@@ -334,10 +334,14 @@
     }
   });
 
-  // Também escuta mensagens do background (relay reverso: painel → background → content)
-  chrome.runtime.onMessage.addListener(function (msg) {
-    if (msg && msg.type === 'FROM_PANEL') {
-      // Reprocessa como se viesse de postMessage
+  // Escuta mensagens do background (relay reverso + PING do popup)
+  chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
+    if (!msg) return;
+    if (msg.type === 'PING') {
+      sendResponse({ pong: true });
+      return true;
+    }
+    if (msg.type === 'FROM_PANEL') {
       window.dispatchEvent(new MessageEvent('message', { data: msg.payload }));
     }
   });
