@@ -14132,51 +14132,92 @@ function frRender() {
     list.appendChild(el);
   });
 
-  // Bloco colapsável de revisadas
+  // Bloco de revisadas (sempre visível)
   if(doneItems.length > 0){
     const doneWrap = document.createElement('div');
-    doneWrap.style.cssText = 'margin-top:.5rem;border-top:1px solid var(--border);padding-top:.5rem;';
+    doneWrap.style.cssText = 'margin-top:.65rem;border-top:1px solid var(--border);padding-top:.55rem;';
 
-    const toggleRow = document.createElement('div');
-    toggleRow.style.cssText = 'display:flex;align-items:center;gap:.35rem;cursor:pointer;font-size:.65rem;color:var(--muted2);padding:.2rem 0;user-select:none;';
-    toggleRow.innerHTML = `<span id="fr-done-chevron" style="font-size:.6rem;">▶</span><span>✓ ${doneItems.length} revisada${doneItems.length>1?'s':''} — clique para ver</span>`;
-
+    // Header com contagem + filtros + limpar
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem;';
+    const headerLabel = document.createElement('span');
+    headerLabel.style.cssText = 'font-size:.62rem;color:var(--green);font-weight:700;letter-spacing:.5px;text-transform:uppercase;';
+    headerLabel.textContent = '✓ '+doneItems.length+' Revisada'+(doneItems.length>1?'s':'');
+    const filterInp = document.createElement('input');
+    filterInp.type = 'text';
+    filterInp.placeholder = 'Filtrar...';
+    filterInp.value = window._frDoneFilter || '';
+    filterInp.style.cssText = 'flex:1;max-width:160px;font-size:.6rem;background:var(--surf2);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:2px 7px;outline:none;font-family:var(--ff);';
+    filterInp.oninput = () => {
+      window._frDoneFilter = filterInp.value.toLowerCase();
+      Array.from(doneList.children).forEach(child => {
+        const txt = child.dataset.search || '';
+        child.style.display = txt.includes(window._frDoneFilter) ? '' : 'none';
+      });
+    };
     const clearBtn = document.createElement('button');
-    clearBtn.style.cssText = 'margin-left:auto;background:none;border:1px solid rgba(248,113,113,.2);border-radius:5px;padding:1px 6px;cursor:pointer;font-size:.57rem;color:var(--red);font-family:var(--ff);';
-    clearBtn.textContent = '🧹 Limpar';
-    clearBtn.onclick = (e) => { e.stopPropagation(); frClearDone(); };
-    toggleRow.appendChild(clearBtn);
+    clearBtn.style.cssText = 'margin-left:auto;background:none;border:1px solid rgba(248,113,113,.2);border-radius:5px;padding:2px 7px;cursor:pointer;font-size:.58rem;color:var(--red);font-family:var(--ff);';
+    clearBtn.textContent = '🧹 Limpar todas';
+    clearBtn.onclick = () => frClearDone();
+    header.appendChild(headerLabel);
+    header.appendChild(filterInp);
+    header.appendChild(clearBtn);
 
     const doneList = document.createElement('div');
     doneList.id = 'fr-done-list';
-    const initOpen = !!window._frDoneOpen;
-    doneList.style.cssText = 'display:'+(initOpen?'flex':'none')+';flex-direction:column;gap:.3rem;margin-top:.35rem;';
-    if (initOpen) toggleRow.querySelector('#fr-done-chevron').textContent = '▼';
+    doneList.style.cssText = 'display:flex;flex-direction:column;gap:.3rem;max-height:280px;overflow-y:auto;padding-right:.25rem;';
 
-    toggleRow.onclick = () => {
-      const open = doneList.style.display !== 'none';
-      doneList.style.display = open ? 'none' : 'flex';
-      doneWrap.querySelector('#fr-done-chevron').textContent = open ? '▶' : '▼';
-      window._frDoneOpen = !open;
-    };
+    // Ordena: mais recentes primeiro
+    const doneSorted = [...doneItems].sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
 
-    doneItems.forEach(item => {
+    doneSorted.forEach(item => {
       const d = document.createElement('div');
-      d.style.cssText = 'display:flex;align-items:center;gap:.5rem;background:rgba(16,185,129,.04);border:1px solid rgba(16,185,129,.1);border-radius:8px;padding:.4rem .65rem;opacity:.7;';
-      d.innerHTML = `<span style="font-size:.65rem;color:var(--green);">✓</span>
+      const reincBadge = item.reincidente ? `<span style="font-size:.5rem;padding:1px 4px;border-radius:4px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3);font-weight:800;flex-shrink:0;">${item.erros||2}× ERRO</span>` : '';
+      const desc = item.desc || item.label || 'Questão';
+      const discName = (item.discName||'—').replace('Dir. ','');
+      const doneTime = item.doneAt ? new Date(item.doneAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      d.dataset.search = (desc+' '+discName).toLowerCase();
+      d.style.cssText = 'display:flex;align-items:center;gap:.5rem;background:rgba(16,185,129,.04);border:1px solid rgba(16,185,129,.1);border-radius:8px;padding:.4rem .65rem;';
+      d.innerHTML = `<span style="font-size:.7rem;color:var(--green);flex-shrink:0;">✓</span>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:.65rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted2);">${item.desc||item.label||'Questão'}</div>
-          <div style="font-size:.58rem;color:var(--muted);margin-top:1px;">${item.discName||'—'} · ${item.doneAt?new Date(item.doneAt).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</div>
+          <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:1px;">
+            ${reincBadge}
+            <div style="font-size:.7rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);flex:1;">${desc}</div>
+          </div>
+          <div style="font-size:.58rem;color:var(--muted2);">
+            <span style="color:${item.discColor||'var(--muted)'};font-weight:700;">${discName}</span>
+            <span style="margin-left:.45rem;">📅 ${doneTime}</span>
+          </div>
         </div>
-        <a href="${item.link}" target="_blank" style="font-size:.58rem;color:var(--cyan);text-decoration:none;flex-shrink:0;">🔗</a>
-        <button onclick="frRemove('${item.id}')" style="background:none;border:none;cursor:pointer;font-size:.6rem;color:var(--muted);font-family:var(--ff);flex-shrink:0;">✕</button>`;
+        <a href="${item.link}" target="_blank" title="Abrir questão" style="font-size:.7rem;color:var(--cyan);text-decoration:none;flex-shrink:0;padding:2px 5px;border-radius:5px;border:1px solid rgba(34,211,238,.2);">🔗</a>
+        <button onclick="frReopen('${item.id}')" title="Adicionar de volta à fila" style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:5px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:#f59e0b;font-family:var(--ff);flex-shrink:0;">↻</button>
+        <button onclick="frRemove('${item.id}')" title="Remover" style="background:none;border:1px solid var(--border);border-radius:5px;padding:2px 6px;cursor:pointer;font-size:.6rem;color:var(--muted);font-family:var(--ff);flex-shrink:0;">✕</button>`;
+      // Aplicar filtro inicial
+      if (window._frDoneFilter && !d.dataset.search.includes(window._frDoneFilter)) d.style.display = 'none';
       doneList.appendChild(d);
     });
 
-    doneWrap.appendChild(toggleRow);
+    doneWrap.appendChild(header);
     doneWrap.appendChild(doneList);
     list.appendChild(doneWrap);
   }
+}
+
+// Recolocar item revisado de volta na fila (com novo intervalo SM-2)
+function frReopen(id) {
+  const item = (state.filaRevisao||[]).find(f => f.id === id);
+  if (!item) return;
+  const now = Date.now();
+  item.status = 'waiting';
+  item.openedAt = null;
+  item.doneAt = null;
+  item.addedAt = now;
+  // Reinicia com 15min ou mantém o último intervalo se SM-2 estiver ativo
+  item.intervalMins = Math.max(15, Math.floor((item.intervalMins||15)/2));
+  item.dueAt = now + item.intervalMins*60000;
+  item.readyAt = item.dueAt;
+  saveState(); frRender(); frUpdateNavBadge();
+  flash('↻ "'+(item.desc||'Questão').slice(0,40)+'..." voltou à fila','#f59e0b');
 }
 
 function frToggleDone(btn){
