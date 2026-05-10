@@ -3943,6 +3943,7 @@ select.inp{appearance:none;cursor:pointer;}
           <div class="slabel" style="margin:0;">📚 Disciplinas Cadastradas</div>
           <div style="display:flex;gap:.4rem;align-items:center;">
             <span style="font-family:var(--mono);font-size:.65rem;color:var(--muted2);" id="disc-count-badge">0 disciplinas</span>
+            <button class="btn" style="font-size:.7rem;padding:.35rem .85rem;" onclick="openBulkAddModal()" title="Cole uma lista de disciplinas (uma por linha)">📋 Em lote</button>
             <button class="btn btn-gold" style="font-size:.7rem;padding:.35rem .85rem;" onclick="openAddModal()">+ Nova Disciplina</button>
           </div>
         </div>
@@ -4990,6 +4991,24 @@ select.inp{appearance:none;cursor:pointer;}
 </div>
 
 <!-- MODALS -->
+<div class="overlay" id="bulk-add-overlay" onclick="if(event.target===this)closeBulkAddModal()">
+  <div class="modal" style="max-width:520px;width:96vw;">
+    <h3>📋 Cadastrar disciplinas em lote</h3>
+    <p style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin:0 0 .6rem;">Cole uma lista de disciplinas (uma por linha). Você pode opcionalmente colocar a meta semanal entre parênteses.</p>
+    <textarea id="bulk-add-text" rows="10" placeholder="Direito Tributário (20)
+Direito Administrativo (15)
+Português
+Contabilidade Geral (12)
+Auditoria"
+      style="width:100%;background:var(--surf2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:.7rem;font-family:var(--mono);font-size:.78rem;outline:none;resize:vertical;line-height:1.6;"></textarea>
+    <div style="font-size:.62rem;color:var(--muted2);margin-top:.5rem;line-height:1.5;">As cores são atribuídas automaticamente. A meta padrão é 10h/semana se omitida.</div>
+    <div class="mactions" style="margin-top:.9rem;">
+      <button class="btn btn-gold" style="flex:1;justify-content:center" onclick="bulkAddDisciplines()">Cadastrar todas</button>
+      <button class="btn btn-ghost" onclick="closeBulkAddModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal">
     <h3>Nova Disciplina</h3>
@@ -5511,7 +5530,33 @@ function renderDisciplines(){
 function removeDiscipline(id){state.disciplines=state.disciplines.filter(d=>d.id!==id);saveState();renderDisciplines();renderProgress();}
 function openAddModal(){document.getElementById('modal-name').value='';document.getElementById('modal-goal').value=10;document.getElementById('modal-overlay').classList.add('open');}
 function closeModal(e){if(!e||e.target===document.getElementById('modal-overlay'))document.getElementById('modal-overlay').classList.remove('open');}
-function addDiscipline(){const name=document.getElementById('modal-name').value.trim();if(!name){flash('Digite o nome!','#f0b429');return;}state.disciplines.push({id:uid(),name,color:selColor,weeklyGoal:parseInt(document.getElementById('modal-goal').value)||10});document.getElementById('modal-overlay').classList.remove('open');saveState();renderDisciplines();renderWeekGrid();flash('Disciplina adicionada!','#10b981');}
+function addDiscipline(){const name=document.getElementById('modal-name').value.trim();if(!name){flash('Digite o nome!','#f0b429');return;}state.disciplines.push({id:uid(),name,color:selColor,weeklyGoal:parseInt(document.getElementById('modal-goal').value)||10});document.getElementById('modal-overlay').classList.remove('open');saveState();renderDisciplines();renderDiscFull();renderWeekGrid();flash('Disciplina adicionada!','#10b981');}
+function openBulkAddModal(){const ov=document.getElementById('bulk-add-overlay');if(!ov)return;document.getElementById('bulk-add-text').value='';ov.classList.add('open');setTimeout(()=>document.getElementById('bulk-add-text')?.focus(),120);}
+function closeBulkAddModal(){document.getElementById('bulk-add-overlay')?.classList.remove('open');}
+function bulkAddDisciplines(){
+  const txt=document.getElementById('bulk-add-text')?.value||'';
+  const lines=txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){flash('Cole pelo menos uma disciplina.','#f0b429');return;}
+  let added=0,skipped=0;
+  const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  lines.forEach((ln,i)=>{
+    const m=ln.match(/^(.+?)\s*(?:[\(\[]\s*(\d+(?:[.,]\d+)?)\s*h?\s*[\)\]])?\s*$/);
+    const name=m?m[1].trim():ln;
+    const goal=m&&m[2]?parseFloat(m[2].replace(',','.')):10;
+    if(!name)return;
+    if(state.disciplines.some(d=>norm(d.name)===norm(name))){skipped++;return;}
+    const color=COLORS[(state.disciplines.length+i)%COLORS.length];
+    state.disciplines.push({id:uid(),name,color,weeklyGoal:goal});
+    added++;
+  });
+  saveState();
+  closeBulkAddModal();
+  try{renderDisciplines();}catch(e){}
+  try{renderDiscFull();}catch(e){}
+  try{renderWeekGrid();}catch(e){}
+  try{renderEdital();renderEditalAnalysis();}catch(e){}
+  flash(`✅ ${added} disciplina${added!==1?'s':''} cadastrada${added!==1?'s':''}${skipped?` · ${skipped} ignorada${skipped!==1?'s':''} (já existem)`:''}`, added?'#10b981':'#f0a500',4000);
+}
 function renderColorPicker(){const cp=document.getElementById('color-picker');cp.innerHTML='';COLORS.forEach(c=>{const d=document.createElement('div');d.className='cdot'+(c===selColor?' sel':'');d.style.background=c;d.onclick=()=>{selColor=c;renderColorPicker();};cp.appendChild(d);});}
 
 // ═══ DISCIPLINAS — NOVA ABA ════════════════════
@@ -5532,7 +5577,8 @@ function renderDiscFull(){
         ${hasEditalData ? '<br><strong style="color:var(--gold)">⚠️ Detectei dados do Edital sem disciplinas correspondentes.</strong>' : ''}
         <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.5rem;">
           <button class="btn btn-gold" onclick="discLoadFromEditalTemplate()" style="justify-content:center;">📥 Carregar disciplinas de um edital</button>
-          <button class="btn" onclick="openAddModal()" style="justify-content:center;">+ Adicionar disciplina manualmente</button>
+          <button class="btn" onclick="openBulkAddModal()" style="justify-content:center;">📋 Cadastrar várias de uma vez</button>
+          <button class="btn btn-ghost" onclick="openAddModal()" style="justify-content:center;">+ Adicionar uma disciplina</button>
         </div>
       </div>`;
   }
