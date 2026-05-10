@@ -3931,7 +3931,7 @@ select.inp{appearance:none;cursor:pointer;}
           </div>
         </div>
         <p style="font-size:.68rem;color:var(--muted2);margin-bottom:1rem;line-height:1.55;">
-          Gerencie suas disciplinas aqui. Clique no nome ou na cor para editar. Use o botão de lixeira para excluir.
+          Gerencie suas disciplinas aqui. Clique no nome ou na cor para editar. Clique em <span style="color:var(--cyan);font-weight:700;">📋 Assuntos</span> ao lado do nome para cadastrar assuntos e subassuntos. Use 🗑 para excluir.
         </p>
 
         <!-- Header da tabela -->
