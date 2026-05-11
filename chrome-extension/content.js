@@ -20,6 +20,7 @@
   let _lastUrl = '';
   let _pfEndSent = false;
   let _pfDesempenhoOpen = false; // rastreia se painel "Desempenho nesta questão" está aberto
+  let _pfAutoFetchKey = '';     // dedup para autoFetchDesempenho (qid_A_E)
   let _pfMin = false;
   let _pfHiddenSince = 0;
   let _pfFila = [];
@@ -152,7 +153,7 @@
     const qi = getInfo();
     if (!qi.qid) return;
 
-    // Divide o texto para isolar "Meu Desempenho" do "Desempenho Geral"
+    // Divide o texto para isolar seção "Meu Desempenho" (pessoal) do resto
     const meuIdx = tx.indexOf('Meu Desempenho');
     const globalTx = meuIdx >= 0 ? tx.slice(0, meuIdx) : tx;
     const myTx     = meuIdx >= 0 ? tx.slice(meuIdx)    : '';
@@ -165,24 +166,59 @@
     const myResM = myTx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
     const myTotal = myResM ? parseInt(myResM[1]) : 0;
 
-    // ── Desempenho Geral ─────────────────────────────────────────────────────
+    // ── Dificuldade (do Desempenho Geral) ────────────────────────────────────
     const difM = globalTx.match(/Dificuldade:\s*([^\n\r]+)/i);
     const dificuldade = difM ? difM[1].trim() : '';
-    const globalTotM = globalTx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
-    const globalTotal = globalTotM ? parseInt(globalTotM[1]) : 0;
-    const globalAcM = globalTx.match(/Acertos?[:\s]+([\d,.]+)%/i);
-    const globalAcertos = globalAcM ? parseFloat(globalAcM[1].replace(',', '.')) : null;
-    const globalTempoM = globalTx.match(/Tempo m[eé]dio[:\s]+([^\n\r]+)/i);
-    const globalTempo = globalTempoM ? globalTempoM[1].trim() : '';
 
     qi.myErrors    = myErrors;
     qi.myTotal     = myTotal;
     qi.dificuldade = dificuldade;
-    qi.globalTotal = globalTotal;
-    qi.globalAcertos = globalAcertos;
-    qi.globalTempo = globalTempo;
 
     send('desempenho_detail', qi);
+  }
+
+  // Tenta ler dados de desempenho do DOM. Se não disponíveis, abre a seção programaticamente.
+  function autoFetchDesempenho(snapQid) {
+    const qi = getInfo();
+    if (snapQid && qi.qid && qi.qid !== snapQid) return; // navegou para outra questão
+
+    // Dedup: não reprocessar o mesmo estado de resposta
+    const dKey = (qi.qid || window.location.href) + '_' + A + '_' + E;
+    if (_pfAutoFetchKey === dKey) return;
+
+    const tx = document.body.innerText || '';
+    const meuIdx = tx.indexOf('Meu Desempenho');
+    const myTx = meuIdx >= 0 ? tx.slice(meuIdx) : '';
+    // Dados disponíveis se há histórico pessoal (Acertou/Errou ou Total de resoluções)
+    const hasData = meuIdx >= 0 &&
+      (myTx.includes('Total de resolu') || myTx.includes('Errou') || myTx.includes('Acertou'));
+
+    if (hasData) {
+      _pfAutoFetchKey = dKey;
+      scanDesempenho();
+      return;
+    }
+
+    // Dados não carregados: abre seção "Desempenho nesta questão" programaticamente
+    const clickables = document.querySelectorAll('button, [role="button"]');
+    for (const el of clickables) {
+      const t = (el.textContent || '').trim();
+      if (/desempenho/i.test(t) && !/fechar|esconder/i.test(t) && t.length < 80) {
+        _pfAutoFetchKey = dKey;
+        el.click();
+        setTimeout(() => {
+          scanDesempenho();
+          // Fecha o painel após leitura para não interferir no fluxo
+          setTimeout(() => {
+            const btns = document.querySelectorAll('button');
+            for (const b of btns) {
+              if (/fechar/i.test(b.textContent || '')) { b.click(); break; }
+            }
+          }, 350);
+        }, 750);
+        break;
+      }
+    }
   }
 
   function checkCadernoEnd() {
@@ -214,12 +250,12 @@
     }
     const s = parse();
 
-    // Detecta abertura do painel "Desempenho nesta questão" → extrai e envia dados detalhados
+    // Detecta abertura do painel "Desempenho nesta questão" (usuário abre manualmente)
     const tx0 = document.body.innerText || '';
     const isDesempenhoOpen = tx0.includes('Meu Desempenho') && tx0.includes('Desempenho Geral');
     if (isDesempenhoOpen && !_pfDesempenhoOpen) {
       _pfDesempenhoOpen = true;
-      setTimeout(scanDesempenho, 400); // aguarda DOM renderizar completamente
+      setTimeout(scanDesempenho, 400);
     } else if (!isDesempenhoOpen) {
       _pfDesempenhoOpen = false;
     }
@@ -228,6 +264,14 @@
     // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
     if (Date.now() - _pfConnectTime < 3000) { if (da > 0) A = s.a; if (de > 0) E = s.e; return; }
     if (da > 0) { for (let i = 0; i < da; i++) send('correct', null); A = s.a; }
+    if (da > 0 || de > 0) {
+      // Reset do estado de desempenho: permite re-scan quando dados da nova questão carregam
+      // Necessário em cadernos onde a URL não muda entre questões
+      _pfDesempenhoOpen = false;
+      const _snapQidD = getInfo().qid;
+      setTimeout(() => autoFetchDesempenho(_snapQidD), 1500);  // tentativa principal
+      setTimeout(() => autoFetchDesempenho(_snapQidD), 4000);  // fallback se DOM demorar
+    }
     if (da > 0 || de > 0) setTimeout(checkCadernoEnd, 800);
     if (de > 0) {
       const _de = de; E = s.e;
