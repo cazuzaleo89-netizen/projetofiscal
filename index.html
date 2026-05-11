@@ -2663,6 +2663,14 @@ select.inp{appearance:none;cursor:pointer;}
               onfocus="this.style.borderColor='rgba(52,211,153,.35)'" onblur="this.style.borderColor='rgba(255,255,255,.07)'"/>
           </div>
         </div>
+        <!-- Assunto da sessão -->
+        <div style="margin-bottom:10px;">
+          <div style="font-size:8px;color:#475569;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;">ASSUNTO <span style="color:#374151;font-weight:400;text-transform:none;letter-spacing:0;">(opcional)</span></div>
+          <input id="cron-q-assunto" type="text" list="cron-assunto-dl" placeholder="Ex: Receita Pública, Controle Interno…"
+            style="width:100%;background:#0f1b2d;border:1px solid rgba(255,255,255,.07);border-radius:10px;color:#c4b5fd;font-size:11px;font-weight:600;padding:8px 11px;outline:none;box-sizing:border-box;font-family:inherit;transition:border-color .2s;"
+            onfocus="this.style.borderColor='rgba(139,92,246,.45)'" onblur="this.style.borderColor='rgba(255,255,255,.07)'"
+            oninput="cronState.assunto=this.value.trim()"/>
+        </div>
         <button onclick="cronRegisterQ()"
           style="width:100%;padding:11px;border-radius:12px;border:none;background:linear-gradient(135deg,rgba(34,211,238,.15),rgba(99,102,241,.15));border:1px solid rgba(34,211,238,.25);color:#22d3ee;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;transition:all .2s;"
           onmouseover="this.style.background='linear-gradient(135deg,rgba(34,211,238,.25),rgba(99,102,241,.25))'"
@@ -16625,6 +16633,9 @@ function cronUpdateUI() {
   set('cron-s-res', cronState.resolved);
   set('cron-s-ace', cronState.acertos);
   set('cron-s-err', cronState.erros);
+  // Sync assunto no campo de registro
+  const qAss = document.getElementById('cron-q-assunto');
+  if (qAss && !qAss.matches(':focus') && cronState.assunto) qAss.value = cronState.assunto;
   // Topbar pill
   const pill = document.getElementById('missao-topbar-pill');
   const pillT = document.getElementById('missao-topbar-timer');
@@ -16868,12 +16879,14 @@ function cronRegisterQ() {
   const total   = parseInt(document.getElementById('cron-q-total')?.value)||0;
   const correct = parseInt(document.getElementById('cron-q-correct')?.value)||0;
   if (!total||total<1){flash('Informe as questões resolvidas!','#f0b429');return;}
+  const assunto = (document.getElementById('cron-q-assunto')?.value||'').trim() || cronState.assunto || '';
+  if (assunto) cronState.assunto = assunto;
   const now=new Date();
-  state.questionSessions.push({id:uid(),subjectId:cronState.discId,subject:cronState.discName||'Geral',total,correct,banca:'Sessão',obs:'',date:now.toISOString(),dateStr:now.toLocaleDateString('pt-BR'),timeStr:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})});
+  state.questionSessions.push({id:uid(),subjectId:cronState.discId,subject:cronState.discName||'Geral',assunto,total,correct,banca:'Sessão',obs:'',date:now.toISOString(),dateStr:now.toLocaleDateString('pt-BR'),timeStr:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})});
   saveState();updateStats();cronUpdateTodayLog();
   document.getElementById('cron-q-total').value='';
   document.getElementById('cron-q-correct').value='';
-  flash(`✅ ${correct}/${total} questões registradas!`,'#10b981');
+  flash(`✅ ${correct}/${total} questões registradas${assunto?' — '+assunto:''}!`,'#10b981');
 }
 
 // ═══ REGISTRO MANUAL (horas + questões) ═══════
