@@ -19,6 +19,7 @@
   let _pfConnectTime = 0; // timestamp da conexão — usado para warmup de 3s
   let _lastUrl = '';
   let _pfEndSent = false;
+  let _pfDesempenhoOpen = false; // rastreia se painel "Desempenho nesta questão" está aberto
   let _pfMin = false;
   let _pfHiddenSince = 0;
   let _pfFila = [];
@@ -145,6 +146,45 @@
     send('wrong_import', qi);
   }
 
+  function scanDesempenho() {
+    const tx = document.body.innerText || '';
+    if (!tx.includes('Meu Desempenho')) return;
+    const qi = getInfo();
+    if (!qi.qid) return;
+
+    // Divide o texto para isolar "Meu Desempenho" do "Desempenho Geral"
+    const meuIdx = tx.indexOf('Meu Desempenho');
+    const globalTx = meuIdx >= 0 ? tx.slice(0, meuIdx) : tx;
+    const myTx     = meuIdx >= 0 ? tx.slice(meuIdx)    : '';
+
+    // ── Meu Desempenho ───────────────────────────────────────────────────────
+    const errouArr = myTx.match(/\bErrou\b/gi);
+    let myErrors = errouArr ? errouArr.length : 0;
+    const myErrNumM = myTx.match(/(\d+)\s*(?:erros?\b|[x×]\s*errou)/i);
+    if (myErrNumM) { const ne = parseInt(myErrNumM[1]); if (ne > myErrors) myErrors = ne; }
+    const myResM = myTx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
+    const myTotal = myResM ? parseInt(myResM[1]) : 0;
+
+    // ── Desempenho Geral ─────────────────────────────────────────────────────
+    const difM = globalTx.match(/Dificuldade:\s*([^\n\r]+)/i);
+    const dificuldade = difM ? difM[1].trim() : '';
+    const globalTotM = globalTx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
+    const globalTotal = globalTotM ? parseInt(globalTotM[1]) : 0;
+    const globalAcM = globalTx.match(/Acertos?[:\s]+([\d,.]+)%/i);
+    const globalAcertos = globalAcM ? parseFloat(globalAcM[1].replace(',', '.')) : null;
+    const globalTempoM = globalTx.match(/Tempo m[eé]dio[:\s]+([^\n\r]+)/i);
+    const globalTempo = globalTempoM ? globalTempoM[1].trim() : '';
+
+    qi.myErrors    = myErrors;
+    qi.myTotal     = myTotal;
+    qi.dificuldade = dificuldade;
+    qi.globalTotal = globalTotal;
+    qi.globalAcertos = globalAcertos;
+    qi.globalTempo = globalTempo;
+
+    send('desempenho_detail', qi);
+  }
+
   function checkCadernoEnd() {
     if (_pfEndSent) return;
     const tx = document.body.innerText || '';
@@ -168,10 +208,21 @@
     if (cu !== _lastUrl) {
       _lastUrl = cu;
       _pfEndSent = false;
+      _pfDesempenhoOpen = false;
       setTimeout(scanHistory, 1200);
       setTimeout(checkCadernoEnd, 1500);
     }
     const s = parse();
+
+    // Detecta abertura do painel "Desempenho nesta questão" → extrai e envia dados detalhados
+    const tx0 = document.body.innerText || '';
+    const isDesempenhoOpen = tx0.includes('Meu Desempenho') && tx0.includes('Desempenho Geral');
+    if (isDesempenhoOpen && !_pfDesempenhoOpen) {
+      _pfDesempenhoOpen = true;
+      setTimeout(scanDesempenho, 400); // aguarda DOM renderizar completamente
+    } else if (!isDesempenhoOpen) {
+      _pfDesempenhoOpen = false;
+    }
     if (!s) return;
     const da = s.a - A, de = s.e - E;
     // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)

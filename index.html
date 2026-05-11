@@ -18447,6 +18447,83 @@ window.addEventListener('message', function(e){
       return;
     }
 
+    // Painel "Desempenho nesta questão" aberto no TEC → captura dados detalhados
+    if(r === 'desempenho_detail' && e.data.qid){
+      var dqId      = e.data.qid;
+      var dMyErr    = parseInt(e.data.myErrors)    || 0;
+      var dMyTotal  = parseInt(e.data.myTotal)     || 0;
+      var dDific    = e.data.dificuldade            || '';
+      var dGlobTot  = parseInt(e.data.globalTotal) || 0;
+      var dGlobAc   = e.data.globalAcertos != null  ? parseFloat(e.data.globalAcertos) : null;
+      var dGlobTmp  = e.data.globalTempo            || '';
+      var dUrl      = e.data.url || ('https://www.tecconcursos.com.br/questoes/'+dqId);
+      var dDesc     = e.data.desc     || 'Questão #'+dqId;
+      var dMateria  = e.data.materia  || '';
+      var dAssunto  = e.data.assunto  || '';
+
+      whEnsure();
+      var dWH = state.wrongHistory[dqId];
+      if(dWH){
+        // Enriquece com dados TEC
+        if(dDific)    dWH.dificuldade  = dDific;
+        if(dGlobTot)  dWH.globalTotal  = dGlobTot;
+        if(dGlobAc != null) dWH.globalAcertos = dGlobAc;
+        if(dGlobTmp)  dWH.globalTempo  = dGlobTmp;
+        if(dMyTotal > (dWH.myTotal||0)) dWH.myTotal = dMyTotal;
+        if(dMyErr > (dWH.erros||0)){
+          dWH.erros    = dMyErr;
+          dWH.myErrors = dMyErr;
+        }
+      } else if(dMyErr > 0){
+        // Questão com erros históricos encontrada via painel de desempenho
+        state.wrongHistory[dqId] = {
+          qid:dqId, url:dUrl, desc:dDesc,
+          materia:dMateria, assunto:dAssunto,
+          erros:dMyErr, myErrors:dMyErr, myTotal:dMyTotal,
+          dificuldade:dDific, globalTotal:dGlobTot,
+          globalAcertos:dGlobAc, globalTempo:dGlobTmp,
+          datas:[], importado:true, firstErro: new Date().toISOString()
+        };
+      }
+
+      // ── Auto-adicionar à fila de reincidências (>1 erro) ─────────────────
+      if(dMyErr >= 2){
+        frEnsure();
+        var dWH2 = state.wrongHistory[dqId];
+        var dFilaExist = (state.filaRevisao||[]).find(function(q){ return q.qid===dqId || q.link===dUrl; });
+        if(dFilaExist){
+          dFilaExist.erros = Math.max(dFilaExist.erros||0, dMyErr);
+          dFilaExist.reincidente = true;
+          dFilaExist.prioridade = 'alta';
+        } else {
+          var dNow = Date.now();
+          state.filaRevisao.unshift({
+            id:uid(), qid:dqId, link:dUrl, desc:dDesc,
+            materia:dMateria, assunto:dAssunto,
+            erros:dMyErr, reincidente:true, prioridade:'alta',
+            status:'waiting', addedAt:dNow, dueAt:dNow+15*60000,
+            intervalMins:15, importado:true
+          });
+        }
+        saveState(); frUpdateNavBadge(); wrongHistoryRender(); wrongHistoryUpdateBadge();
+        var dLabel = (dAssunto||dMateria||'Questão').substring(0,38);
+        var dDificLabel = dDific ? ' · '+dDific : '';
+        var dGlobLabel = dGlobAc != null ? ' · TEC '+dGlobAc+'%' : '';
+        flash('⚠️ Reincidência — '+dMyErr+'× erros: '+dLabel+dDificLabel+dGlobLabel, '#ef4444', 6000);
+        try{ frRender(); }catch(x){}
+      } else if(dDific || dGlobTot){
+        // Questão nova ou sem erros: só mostra estatística no widget se houver dado relevante
+        if(dGlobAc != null && dDific){
+          var dLabelN = (dAssunto||dMateria||'Q#'+dqId).substring(0,30);
+          flash('📊 '+dLabelN+' · '+dDific+' · TEC '+dGlobAc+'% ('+dGlobTot+'q)'+
+                (dGlobTmp?' · ⏱'+dGlobTmp:''), '#0ea5e9', 5000);
+        }
+        if(dMyErr > 0) saveState();
+        try{ wrongHistoryUpdateBadge(); }catch(x){}
+      }
+      return;
+    }
+
     // Correção tardia: histórico do TEC carregou após o wrong inicial
     if(r === 'wrong_update' && e.data.url){
       var qId2  = e.data.qid || (e.data.url||'').replace(/.*\//,'');
@@ -18879,9 +18956,43 @@ window.addEventListener('message', function(e){
           '}' +
         '}' +
       '}' +
+      'var _pfDesempenhoOpen=false;' +
+      'function scanDesempenho(){' +
+        'var tx=document.body.innerText||"";' +
+        'if(tx.indexOf("Meu Desempenho")<0)return;' +
+        'var qi=getInfo();if(!qi.qid)return;' +
+        'var meuIdx=tx.indexOf("Meu Desempenho");' +
+        'var globalTx=meuIdx>=0?tx.slice(0,meuIdx):tx;' +
+        'var myTx=meuIdx>=0?tx.slice(meuIdx):"";' +
+        // erros em "Meu Desempenho"
+        'var errouArr=myTx.match(/\\bErrou\\b/gi);' +
+        'var myErrors=errouArr?errouArr.length:0;' +
+        'var myErrNumM=myTx.match(/(\\d+)\\s*(?:erros?\\b|[x\\xd7]\\s*errou)/i);' +
+        'if(myErrNumM){var ne=parseInt(myErrNumM[1]);if(ne>myErrors)myErrors=ne;}' +
+        'var myResM=myTx.match(/Total de resolu[\\u00e7c][\\u00f5o]es[:\\s]+(\\d+)/i);' +
+        'var myTotal=myResM?parseInt(myResM[1]):0;' +
+        // stats globais
+        'var difM=globalTx.match(/Dificuldade:\\s*([^\\n\\r]+)/i);' +
+        'var dificuldade=difM?difM[1].trim():"";' +
+        'var globalTotM=globalTx.match(/Total de resolu[\\u00e7c][\\u00f5o]es[:\\s]+(\\d+)/i);' +
+        'var globalTotal=globalTotM?parseInt(globalTotM[1]):0;' +
+        'var globalAcM=globalTx.match(/Acertos?[:\\s]+([\\d,.]+)%/i);' +
+        'var globalAcertos=globalAcM?parseFloat(globalAcM[1].replace(",",".")):null;' +
+        'var globalTempoM=globalTx.match(/Tempo m[e\\u00e9]dio[:\\s]+([^\\n\\r]+)/i);' +
+        'var globalTempo=globalTempoM?globalTempoM[1].trim():"";' +
+        'qi.myErrors=myErrors;qi.myTotal=myTotal;' +
+        'qi.dificuldade=dificuldade;qi.globalTotal=globalTotal;' +
+        'qi.globalAcertos=globalAcertos;qi.globalTempo=globalTempo;' +
+        'send("desempenho_detail",qi);' +
+      '}' +
       'function check(){' +
         // Detecta navegação para nova questão → importa histórico após 1,2s (tempo para DOM carregar)
-        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
+        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;_pfDesempenhoOpen=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
+        // Detecta abertura do painel "Desempenho nesta questão"
+        'var tx0=document.body.innerText||"";' +
+        'var isDesempenhoOpen=tx0.indexOf("Meu Desempenho")>=0&&tx0.indexOf("Desempenho Geral")>=0;' +
+        'if(isDesempenhoOpen&&!_pfDesempenhoOpen){_pfDesempenhoOpen=true;setTimeout(scanDesempenho,400);}' +
+        'else if(!isDesempenhoOpen){_pfDesempenhoOpen=false;}' +
         'var s=parse();if(!s)return;' +
         'var da=s.a-A,de=s.e-E;' +
         // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
