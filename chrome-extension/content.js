@@ -200,7 +200,22 @@
 
   // ── Widget ────────────────────────────────────────────────────────────────
 
-  let _pfExpanded = false; // hover expande, saída recolhe
+  let _pfExpanded = false;
+
+  // Injeta keyframes CSS uma vez
+  function pfInjectStyles() {
+    if (document.getElementById('_pfStyles')) return;
+    const s = document.createElement('style');
+    s.id = '_pfStyles';
+    s.textContent = `
+      @keyframes _pfPulse{0%,100%{opacity:1}50%{opacity:.4}}
+      @keyframes _pfSlideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+      #_pfBadge *{box-sizing:border-box;}
+      #_pfBadge { animation: _pfSlideUp .3s ease; }
+      ._pf-stat:hover { background: rgba(255,255,255,.06) !important; }
+    `;
+    document.head.appendChild(s);
+  }
 
   function pfFmt(s) {
     if (!s || s < 0) s = 0;
@@ -211,64 +226,121 @@
 
   function pfRenderWidget() {
     if (!el) return;
+    pfInjectStyles();
 
-    // Modo ícone puro (minimizado)
+    const s = _pfStats;
+    const total = s.acertos + s.erros;
+    const pct = total > 0 ? Math.round(s.acertos / total * 100) : null;
+    const pctColor = pct === null ? '#64748b' : pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+    const isRunning = s.running && !s.paused;
+    const statusColor = s.paused ? '#f59e0b' : isRunning ? '#10b981' : '#6366f1';
+    const statusDot = `<span style="width:7px;height:7px;border-radius:50%;background:${statusColor};display:inline-block;flex-shrink:0;${isRunning?'animation:_pfPulse 2s ease infinite':''}"></span>`;
+
+    // ── MINIMIZADO ──
     if (_pfMin) {
-      el.style.cssText = el.style.cssText.replace(/padding:[^;]+;/, '');
-      el.style.padding = '7px 10px';
-      el.style.borderRadius = '20px';
-      const fila = _pfFila.length > 0 ? `<span style="position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:8px;padding:0 5px;font-size:10px;font-weight:800;">${_pfFila.length}</span>` : '';
-      el.style.position = 'fixed';
-      el.innerHTML = `<span style="position:relative;display:inline-block;font-size:15px;">⚡${fila}</span>`;
+      el.style.cssText = `position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;
+        background:#0f172a;border:1px solid rgba(99,102,241,.4);border-radius:50%;
+        width:42px;height:42px;display:flex;align-items:center;justify-content:center;
+        box-shadow:0 4px 20px rgba(0,0,0,.6),0 0 0 1px rgba(99,102,241,.2);
+        font-family:sans-serif;user-select:none;transition:all .2s ease;`;
+      const badge = _pfFila.length > 0
+        ? `<span style="position:absolute;top:-3px;right:-3px;background:#ef4444;color:#fff;border-radius:6px;padding:0 4px;font-size:9px;font-weight:800;font-family:sans-serif;">${_pfFila.length}</span>`
+        : '';
+      el.innerHTML = `<span style="position:relative;font-size:18px;line-height:1;">⚡${badge}</span>`;
       return;
     }
 
-    const s = _pfStats;
-    const pct = (s.acertos + s.erros) > 0 ? Math.round(s.acertos / (s.acertos + s.erros) * 100) : 0;
-    const cor = pct >= 70 ? '#10b981' : pct >= 50 ? '#f0a500' : '#ef4444';
-    const icon = s.paused ? '⏸' : (s.running ? '▶' : '⚡');
-
+    // ── COMPACTO (padrão) ──
     if (!_pfExpanded) {
-      // ── COMPACTO: pílula pequena com ícone + timer ──
-      const dot = _pfFila.length > 0 ? `<span style="width:7px;height:7px;border-radius:50%;background:#ef4444;display:inline-block;margin-left:4px;box-shadow:0 0 5px #ef4444;"></span>` : '';
-      el.style.padding = '5px 11px';
-      el.style.borderRadius = '20px';
-      el.style.fontSize = '11px';
-      el.innerHTML = `<span style="display:flex;align-items:center;gap:5px;font-family:monospace;font-weight:700;letter-spacing:.5px;">${icon} ${pfFmt(s.elapsed)}${dot}</span>`;
-    } else {
-      // ── EXPANDIDO (hover): mostra stats completos ──
-      const filaBadge = _pfFila.length > 0
-        ? `<span style="background:#ef4444;border-radius:10px;padding:1px 6px;font-size:10px;">📋${_pfFila.length}</span>`
+      el.style.cssText = `position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;
+        background:rgba(9,11,20,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+        border:1px solid rgba(99,102,241,.25);border-radius:24px;
+        padding:7px 13px 7px 10px;
+        box-shadow:0 4px 24px rgba(0,0,0,.55),0 1px 0 rgba(255,255,255,.04) inset;
+        font-family:sans-serif;user-select:none;transition:all .2s ease;color:#f1f5f9;`;
+      const filaPin = _pfFila.length > 0
+        ? `<span style="width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;flex-shrink:0;animation:_pfPulse 1.5s infinite;"></span>`
         : '';
-      const statsHtml = (s.acertos + s.erros) > 0
-        ? `<span style="opacity:.6;margin:0 2px;">|</span><span style="color:#10b981;">✓${s.acertos}</span><span style="color:#ef4444;">✗${s.erros}</span><span style="color:${cor};font-weight:800;">${pct}%</span>`
-        : '';
-      el.style.padding = '7px 13px';
-      el.style.borderRadius = '14px';
-      el.style.fontSize = '12px';
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:7px;font-weight:700;">
-        <span>${icon}</span>
-        <span style="font-family:monospace;">${pfFmt(s.elapsed)}</span>
-        ${statsHtml}${filaBadge}
-        <span id="_pfMinBtn" style="opacity:.5;cursor:pointer;font-size:13px;margin-left:2px;">−</span>
-      </div>`;
-      const minBtn = document.getElementById('_pfMinBtn');
-      if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = true; _pfExpanded = false; pfRenderWidget(); };
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:7px;">
+          ${statusDot}
+          <span style="font-family:'Courier New',monospace;font-size:13px;font-weight:700;letter-spacing:1px;color:#e2e8f0;">${pfFmt(s.elapsed)}</span>
+          ${total > 0 ? `<span style="font-size:10px;font-weight:700;color:${pctColor};letter-spacing:.5px;">${pct}%</span>` : ''}
+          ${filaPin}
+        </div>`;
+      return;
     }
+
+    // ── EXPANDIDO (hover) ──
+    el.style.cssText = `position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:default;
+      background:rgba(9,11,20,.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+      border:1px solid rgba(99,102,241,.3);border-radius:18px;
+      width:220px;padding:14px;
+      box-shadow:0 8px 40px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.05) inset;
+      font-family:sans-serif;user-select:none;transition:all .2s ease;color:#f1f5f9;`;
+
+    const discLabel = s.discName
+      ? `<div style="font-size:9px;letter-spacing:1.5px;color:#6366f1;text-transform:uppercase;font-weight:700;margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.discName}</div>`
+      : '';
+
+    const timerColor = s.paused ? '#f59e0b' : isRunning ? '#a5b4fc' : '#94a3b8';
+
+    const statsRow = total > 0 ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px;">
+        <div class="_pf-stat" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.18);border-radius:10px;padding:7px 4px;text-align:center;cursor:default;transition:background .15s;">
+          <div style="font-size:15px;font-weight:800;color:#10b981;font-family:'Courier New',monospace;">${s.acertos}</div>
+          <div style="font-size:8px;color:#6b7280;letter-spacing:1px;margin-top:2px;">ACERTOS</div>
+        </div>
+        <div class="_pf-stat" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:7px 4px;text-align:center;transition:background .15s;">
+          <div style="font-size:15px;font-weight:800;color:#f87171;font-family:'Courier New',monospace;">${s.erros}</div>
+          <div style="font-size:8px;color:#6b7280;letter-spacing:1px;margin-top:2px;">ERROS</div>
+        </div>
+        <div class="_pf-stat" style="background:rgba(${pct>=70?'16,185,129':pct>=50?'245,158,11':'239,68,68'},.08);border:1px solid rgba(${pct>=70?'16,185,129':pct>=50?'245,158,11':'239,68,68'},.2);border-radius:10px;padding:7px 4px;text-align:center;transition:background .15s;">
+          <div style="font-size:15px;font-weight:800;color:${pctColor};font-family:'Courier New',monospace;">${pct}%</div>
+          <div style="font-size:8px;color:#6b7280;letter-spacing:1px;margin-top:2px;">TAXA</div>
+        </div>
+      </div>` : '';
+
+    const filaRow = _pfFila.length > 0 ? `
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:5px 8px;cursor:pointer;" onclick="window._pfOpenFila && window._pfOpenFila()">
+        <span style="font-size:12px;">📋</span>
+        <span style="font-size:10px;color:#fca5a5;font-weight:600;flex:1;">${_pfFila.length} revisão${_pfFila.length>1?'ões':''} pendente${_pfFila.length>1?'s':''}</span>
+        <span style="font-size:9px;color:#ef4444;font-weight:800;">Alt+R</span>
+      </div>` : '';
+
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${statusDot}
+          <span style="font-size:9px;color:#64748b;letter-spacing:1px;font-weight:600;">${s.paused?'PAUSADO':isRunning?'EM ANDAMENTO':'PAINEL FISCAL'}</span>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span id="_pfMinBtn" title="Minimizar" style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:#64748b;transition:all .15s;" onmouseover="this.style.background='rgba(255,255,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.06)'">−</span>
+        </div>
+      </div>
+      ${discLabel}
+      <div style="font-family:'Courier New',monospace;font-size:28px;font-weight:700;color:${timerColor};letter-spacing:2px;line-height:1;text-align:center;text-shadow:0 0 20px ${timerColor}40;padding:4px 0;">${pfFmt(s.elapsed)}</div>
+      ${statsRow}
+      ${filaRow}`;
+
+    const minBtn = document.getElementById('_pfMinBtn');
+    if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = true; _pfExpanded = false; pfRenderWidget(); };
+    window._pfOpenFila = () => { if(_pfFila[0]) window.open(_pfFila[0].link, '_self'); };
   }
 
   function createWidget(connected) {
     if (document.getElementById('_pfBadge')) return;
+    pfInjectStyles();
     el = document.createElement('div');
     el.id = '_pfBadge';
-    el.style.cssText = 'position:fixed;bottom:14px;right:14px;color:#fff;border-radius:20px;font-weight:700;z-index:2147483647;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.45);font-family:sans-serif;user-select:none;transition:all .25s ease;';
-    el.style.background = connected ? 'linear-gradient(135deg,#10b981,#0ea5e9)' : 'linear-gradient(135deg,#f59e0b,#ef4444)';
-    el.title = 'Painel Fiscal Monitor — passe o mouse para ver stats | clique para abrir painel | duplo clique para desativar';
+    el.title = 'Painel Fiscal Monitor — passe o mouse para stats | clique para abrir painel | duplo clique para desativar';
     if (connected) {
       pfRenderWidget();
     } else {
-      el.style.padding = '6px 12px';
-      el.style.fontSize = '11px';
+      el.style.cssText = `position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;
+        background:rgba(9,11,20,.88);backdrop-filter:blur(12px);border:1px solid rgba(245,158,11,.3);
+        border-radius:24px;padding:7px 13px;font-family:sans-serif;user-select:none;
+        box-shadow:0 4px 24px rgba(0,0,0,.55);color:#f59e0b;font-size:11px;font-weight:700;`;
       el.innerHTML = '⚠ Painel não encontrado';
     }
     // Hover: expande para mostrar stats
