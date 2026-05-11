@@ -16544,8 +16544,11 @@ function cronStop() {
     try { localStorage.removeItem('pf_cron_persist'); } catch(e) {}
 
     // Pré-preencher formulário "Registrar Questões" com contagem ao vivo
-    const _liveTotal = cronState.resolved || (cronState.acertos + cronState.erros);
-    const _liveCorr  = cronState.acertos || 0;
+    // Sanidade: máximo de 1 questão por 10s de sessão (evita burst do SPA ser salvo)
+    const _maxPlausible = Math.max(1, Math.floor((cronState.elapsed || 0) / 10));
+    const _liveRaw  = cronState.resolved || (cronState.acertos + cronState.erros);
+    const _liveTotal = Math.min(_liveRaw, _maxPlausible);
+    const _liveCorr  = Math.min(cronState.acertos || 0, _liveTotal);
     if (_liveTotal > 0) {
       const qTot = document.getElementById('cron-q-total');
       const qCor = document.getElementById('cron-q-correct');
@@ -18881,6 +18884,8 @@ window.addEventListener('message', function(e){
         'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
         'var s=parse();if(!s)return;' +
         'var da=s.a-A,de=s.e-E;' +
+        // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
+        'if(Date.now()-_pfConnectTime<3000){if(da>0)A=s.a;if(de>0)E=s.e;return;}' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
         // Erro: captura qid/url AGORA (antes da página mudar), depois relê
         // myErrors do modal "Meu Desempenho" que pode demorar >500ms para carregar
@@ -18910,6 +18915,8 @@ window.addEventListener('message', function(e){
         '}' +
       '}' +
       'var init=parse();if(init){A=init.a;E=init.e;}' +
+      // Warmup: nos primeiros 3s após conexão só sincroniza A/E sem enviar mensagens
+      'var _pfConnectTime=Date.now();' +
       'var obs=new MutationObserver(check);' +
       'obs.observe(document.body,{childList:true,subtree:true,characterData:true});' +
       // badge — verde se conectou, laranja se não encontrou o painel

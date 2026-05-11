@@ -16,6 +16,7 @@
   // ── Estado local ──────────────────────────────────────────────────────────
   let _pfw = null;      // referência à aba/janela do painel
   let A = 0, E = 0;
+  let _pfConnectTime = 0; // timestamp da conexão — usado para warmup de 3s
   let _lastUrl = '';
   let _pfEndSent = false;
   let _pfMin = false;
@@ -173,6 +174,8 @@
     const s = parse();
     if (!s) return;
     const da = s.a - A, de = s.e - E;
+    // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
+    if (Date.now() - _pfConnectTime < 3000) { if (da > 0) A = s.a; if (de > 0) E = s.e; return; }
     if (da > 0) { for (let i = 0; i < da; i++) send('correct', null); A = s.a; }
     if (da > 0 || de > 0) setTimeout(checkCadernoEnd, 800);
     if (de > 0) {
@@ -488,6 +491,7 @@
 
   function init() {
     _pfw = findPanelWindow();
+    _pfConnectTime = Date.now(); // inicia warmup de 3s
     const init0 = parse();
     if (init0) { A = init0.a; E = init0.e; }
 
