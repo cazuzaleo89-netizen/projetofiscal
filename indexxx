@@ -5120,7 +5120,7 @@ const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:
   filaRevisao:[],
   tecCaderno:{url:'',cadernoBase:'',idPasta:''},
   tecCadernos:[],
-  tecAutoStart:true, tecAutoPause:true, tecRichWidget:true,
+  tecAutoStart:true, tecAutoPause:false, tecRichWidget:true,
   wrongHistory:{},
   missoesCiclo:null,
   xp:0, level:1, achievements:[], focusStreak:0, lastFocusDate:null,
@@ -18447,6 +18447,67 @@ window.addEventListener('message', function(e){
       return;
     }
 
+    // Desempenho capturado automaticamente ao responder questão no TEC
+    if(r === 'desempenho_detail' && e.data.qid){
+      var dqId     = e.data.qid;
+      var dMyErr   = parseInt(e.data.myErrors) || 0;
+      var dMyTotal = parseInt(e.data.myTotal)  || 0;
+      var dDific   = e.data.dificuldade || '';
+      var dUrl     = e.data.url || ('https://www.tecconcursos.com.br/questoes/'+dqId);
+      var dDesc    = e.data.desc    || 'Questão #'+dqId;
+      var dMateria = e.data.materia || '';
+      var dAssunto = e.data.assunto || '';
+
+      whEnsure();
+      var dWH = state.wrongHistory[dqId];
+      if(dWH){
+        if(dDific)   dWH.dificuldade = dDific;
+        if(dMyTotal > (dWH.myTotal||0)) dWH.myTotal = dMyTotal;
+        if(dMyErr > (dWH.erros||0)){ dWH.erros = dMyErr; dWH.myErrors = dMyErr; }
+      } else if(dMyErr > 0){
+        state.wrongHistory[dqId] = {
+          qid:dqId, url:dUrl, desc:dDesc,
+          materia:dMateria, assunto:dAssunto,
+          erros:dMyErr, myErrors:dMyErr, myTotal:dMyTotal,
+          dificuldade:dDific, datas:[], importado:true,
+          firstErro: new Date().toISOString()
+        };
+      }
+
+      // ── Auto-adicionar à fila de reincidências quando Meu Desempenho > 1 erro ──
+      if(dMyErr >= 2){
+        frEnsure();
+        var dFilaExist = (state.filaRevisao||[]).find(function(q){ return q.qid===dqId || q.link===dUrl; });
+        if(dFilaExist){
+          dFilaExist.erros = Math.max(dFilaExist.erros||0, dMyErr);
+          dFilaExist.reincidente = true;
+          dFilaExist.prioridade  = 'alta';
+        } else {
+          var dNow = Date.now();
+          state.filaRevisao.unshift({
+            id:uid(), qid:dqId, link:dUrl, desc:dDesc,
+            materia:dMateria, assunto:dAssunto,
+            erros:dMyErr, reincidente:true, prioridade:'alta',
+            status:'waiting', addedAt:dNow, dueAt:dNow+15*60000,
+            intervalMins:15, importado:true
+          });
+        }
+        saveState(); frUpdateNavBadge(); wrongHistoryRender(); wrongHistoryUpdateBadge();
+        var dLabel = (dAssunto||dMateria||'Questão').substring(0,40);
+        var dDificLabel = dDific ? ' ['+dDific+']' : '';
+        flash('⚠️ Reincidência — '+dMyErr+'× erros'+dDificLabel+': '+dLabel, '#ef4444', 6000);
+        try{ frRender(); }catch(x){}
+      } else if(dMyErr > 0 || dDific){
+        // Primeiro erro ou questão acertada com dificuldade registrada
+        if(dDific){
+          var dLabelN = (dAssunto||dMateria||'Q#'+dqId).substring(0,35);
+          flash('📊 '+dLabelN+' ['+dDific+']'+(dMyTotal?' · '+dMyTotal+'× resolvida':''), '#64748b', 4000);
+        }
+        if(dMyErr > 0){ saveState(); try{ wrongHistoryUpdateBadge(); }catch(x){} }
+      }
+      return;
+    }
+
     // Correção tardia: histórico do TEC carregou após o wrong inicial
     if(r === 'wrong_update' && e.data.url){
       var qId2  = e.data.qid || (e.data.url||'').replace(/.*\//,'');
@@ -18754,10 +18815,10 @@ window.addEventListener('message', function(e){
         'if(_pfw&&!_pfw.closed){try{_pfw.postMessage(msg,"*");return true;}catch(x){}}return false;' +
       '}' +
       // Estado do widget
-      'var _pfStats={elapsed:0,acertos:0,erros:0,resolved:0,running:false,paused:false,discName:""};' +
+      'var _pfStats={elapsed:0,acertos:0,erros:0,resolved:0,running:false,paused:false,discName:"",dificuldade:""};' +
       'var _pfMin=false,_pfExpanded=false,_pfFila=[];' +
       // Injeta CSS de animação uma vez
-      '(function(){if(document.getElementById("_pfStyles"))return;var s=document.createElement("style");s.id="_pfStyles";s.textContent="@keyframes _pfPulse{0%,100%{opacity:1}50%{opacity:.4}}@keyframes _pfSlideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}#_pfBadge{animation:_pfSlideUp .3s ease}#_pfBadge *{box-sizing:border-box}";document.head.appendChild(s);})();' +
+      '(function(){if(document.getElementById("_pfStyles"))return;var s=document.createElement("style");s.id="_pfStyles";s.textContent="@keyframes _pfPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}@keyframes _pfGlow{0%,100%{box-shadow:0 0 0 1px rgba(99,102,241,.3),0 8px 32px rgba(0,0,0,.7)}50%{box-shadow:0 0 0 1px rgba(99,102,241,.6),0 8px 40px rgba(99,102,241,.25),0 0 20px rgba(99,102,241,.15)}}@keyframes _pfSlideUp{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}#_pfBadge{animation:_pfSlideUp .35s cubic-bezier(.16,1,.3,1)}#_pfBadge *{box-sizing:border-box}._pf-s{transition:transform .15s}._pf-s:hover{transform:scale(1.05)}._pf-mb:hover{background:rgba(255,255,255,.12)!important;color:#e2e8f0!important}";document.head.appendChild(s);})();' +
       'function pfFmt(s){if(!s||s<0)s=0;var h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;if(h>0)return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(sc).padStart(2,"0");return String(m).padStart(2,"0")+":"+String(sc).padStart(2,"0");}' +
       'function pfRenderWidget(){' +
         'if(!el)return;' +
@@ -18766,50 +18827,68 @@ window.addEventListener('message', function(e){
         'var pctCor=pct===null?"#64748b":pct>=70?"#10b981":pct>=50?"#f59e0b":"#ef4444";' +
         'var isRun=s.running&&!s.paused;' +
         'var stCor=s.paused?"#f59e0b":isRun?"#10b981":"#6366f1";' +
-        'var dot=\'<span style="width:7px;height:7px;border-radius:50%;background:\'+stCor+\';display:inline-block;flex-shrink:0;\'+( isRun?"animation:_pfPulse 2s infinite":"")+\'"></span>\';' +
-        // MINIMIZADO: círculo
+        'var timerCor=s.paused?"#fbbf24":isRun?"#c7d2fe":"#94a3b8";' +
+        'var statusLabel=s.paused?"PAUSADO":isRun?"EM ANDAMENTO":"PAINEL FISCAL";' +
+        'var statusLabelCor=s.paused?"#f59e0b":isRun?"#34d399":"#6366f1";' +
+        'var difMap={"muito f\\u00e1cil":["#10b981","rgba(16,185,129,.12)","rgba(16,185,129,.25)","\\u2b07"],"f\\u00e1cil":["#34d399","rgba(52,211,153,.1)","rgba(52,211,153,.2)","\\u2199"],"m\\u00e9dio":["#f59e0b","rgba(245,158,11,.12)","rgba(245,158,11,.25)","\\u2192"],"dif\\u00edcil":["#f97316","rgba(249,115,22,.12)","rgba(249,115,22,.25)","\\u2197"],"muito dif\\u00edcil":["#ef4444","rgba(239,68,68,.12)","rgba(239,68,68,.25)","\\u2b06"]};' +
+        'var difKey=(s.dificuldade||"").toLowerCase().trim();' +
+        'var difArr=difMap[difKey]||["#6366f1","rgba(99,102,241,.1)","rgba(99,102,241,.2)","\\u25cf"];' +
+        'var difColor=difArr[0],difBg=difArr[1],difBorder=difArr[2],difArrow=difArr[3];' +
+        'var difBadge=s.dificuldade?\'<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;letter-spacing:.7px;padding:2px 8px;border-radius:20px;background:\'+difBg+\';border:1px solid \'+difBorder+\';color:\'+difColor+\';">\'+difArrow+" "+s.dificuldade.toUpperCase()+\'</span>\':"";' +
+        // MINIMIZADO
         'if(_pfMin){' +
-          'var badge=_pfFila.length>0?\'<span style="position:absolute;top:-3px;right:-3px;background:#ef4444;color:#fff;border-radius:6px;padding:0 4px;font-size:9px;font-weight:800;font-family:sans-serif;">\'+_pfFila.length+\'</span>\':"";' +
-          'el.style.cssText="position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;background:#0f172a;border:1px solid rgba(99,102,241,.4);border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,.6);font-family:sans-serif;user-select:none;transition:all .2s;";' +
-          'el.innerHTML=\'<span style="position:relative;font-size:18px;line-height:1;">&#9889;\'+badge+\'</span>\';' +
+          'el.style.cssText="position:fixed;bottom:20px;right:20px;z-index:2147483647;cursor:pointer;background:linear-gradient(145deg,#1e1b4b,#0f172a);border-radius:50%;width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-family:sans-serif;user-select:none;transition:all .25s cubic-bezier(.16,1,.3,1);"+(isRun?"animation:_pfGlow 3s ease infinite;":"box-shadow:0 0 0 1px rgba(99,102,241,.3),0 8px 32px rgba(0,0,0,.7);");' +
+          'var badge=_pfFila.length>0?\'<span style="position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;border-radius:8px;padding:0 5px;font-size:8px;font-weight:800;min-width:14px;text-align:center;line-height:14px;">\'+_pfFila.length+\'</span>\':"";' +
+          'el.innerHTML=\'<span style="position:relative;font-size:20px;line-height:1;">&#9889;\'+badge+\'</span>\';' +
           'return;' +
         '}' +
         // COMPACTO
         'if(!_pfExpanded){' +
-          'var filaPin=_pfFila.length>0?\'<span style="width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;flex-shrink:0;animation:_pfPulse 1.5s infinite;display:inline-block;"></span>\':"";' +
-          'el.style.cssText="position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;background:rgba(9,11,20,.88);border:1px solid rgba(99,102,241,.25);border-radius:24px;padding:7px 13px 7px 10px;box-shadow:0 4px 24px rgba(0,0,0,.55);font-family:sans-serif;user-select:none;transition:all .2s;color:#f1f5f9;";' +
-          'el.innerHTML=\'<div style="display:flex;align-items:center;gap:7px;">\'+dot+' +
-            '\'<span style="font-family:monospace;font-size:13px;font-weight:700;letter-spacing:1px;color:#e2e8f0;">\'+pfFmt(s.elapsed)+\'</span>\'+' +
-            '(pct!==null?\'<span style="font-size:10px;font-weight:700;color:\'+pctCor+\';letter-spacing:.5px;">\'+pct+\'%</span>\':\'\') +' +
-            'filaPin+\'</div>\';' +
+          'el.style.cssText="position:fixed;bottom:20px;right:20px;z-index:2147483647;cursor:pointer;background:rgba(8,10,20,.93);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(99,102,241,.18);border-radius:30px;padding:0;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.65),0 1px 0 rgba(255,255,255,.04) inset;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;user-select:none;transition:all .2s cubic-bezier(.16,1,.3,1);";' +
+          'var pctBar=total>0?\'<div style="position:absolute;bottom:0;left:0;height:2px;width:\'+pct+\'%;background:linear-gradient(90deg,\'+stCor+\',\'+( pct>=70?"#22d3ee":"#f87171")+\');border-radius:0 0 30px 30px;transition:width .8s ease;"></div>\':"";' +
+          'var filaPin=_pfFila.length>0?\'<div style="width:7px;height:7px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;flex-shrink:0;animation:_pfPulse 1.2s ease infinite;"></div>\':"";' +
+          'el.innerHTML=\'<div style="position:relative;display:flex;align-items:center;gap:8px;padding:8px 14px 8px 11px;">\'+' +
+            '\'<div style="width:8px;height:8px;border-radius:50%;background:\'+stCor+\';flex-shrink:0;\'+( isRun?"animation:_pfPulse 2s ease infinite;box-shadow:0 0 8px "+stCor:"")+";\"></div>"+' +
+            '\'<span style="font-family:\'SF Mono\',\'Courier New\',monospace;font-size:14px;font-weight:700;letter-spacing:2px;color:\'+timerCor+\';\">\'+pfFmt(s.elapsed)+\'</span>\'+' +
+            '(total>0?\'<div style="display:flex;align-items:center;gap:4px;padding-left:4px;border-left:1px solid rgba(255,255,255,.08);">\'+\'<span style="font-size:10px;font-weight:700;color:#10b981;">\'+s.acertos+\'</span>\'+\'<span style="font-size:8px;color:#475569;">\\u00b7</span>\'+\'<span style="font-size:10px;font-weight:700;color:#f87171;">\'+s.erros+\'</span>\'+\'<span style="font-size:9px;font-weight:800;color:\'+pctCor+\';margin-left:2px;">\'+pct+\'%</span></div>\':"") +' +
+            '(difBadge&&total>0?\'<div style="margin-left:2px;">\'+difBadge+\'</div>\':"") +' +
+            'filaPin+\'</div>\'+pctBar;' +
           'return;' +
         '}' +
         // EXPANDIDO
-        'var timerCor=s.paused?"#f59e0b":isRun?"#a5b4fc":"#94a3b8";' +
-        'var discL=s.discName?\'<div style="font-size:9px;letter-spacing:1.5px;color:#6366f1;text-transform:uppercase;font-weight:700;margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\'+s.discName+\'</div>\':"";' +
-        'var statsRow=total>0?\'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px;">\'+' +
-          '\'<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.18);border-radius:10px;padding:7px 4px;text-align:center;">\'+' +
-            '\'<div style="font-size:15px;font-weight:800;color:#10b981;font-family:monospace;">\'+s.acertos+\'</div>\'+' +
-            '\'<div style="font-size:8px;color:#6b7280;letter-spacing:1px;margin-top:2px;">ACERTOS</div></div>\'+' +
-          '\'<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:7px 4px;text-align:center;">\'+' +
-            '\'<div style="font-size:15px;font-weight:800;color:#f87171;font-family:monospace;">\'+s.erros+\'</div>\'+' +
-            '\'<div style="font-size:8px;color:#6b7280;letter-spacing:1px;margin-top:2px;">ERROS</div></div>\'+' +
-          '\'<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:7px 4px;text-align:center;">\'+' +
-            '\'<div style="font-size:15px;font-weight:800;color:\'+pctCor+\';font-family:monospace;">\'+pct+\'%</div>\'+' +
-            '\'<div style="font-size:8px;color:#6b7280;letter-spacing:1px;margin-top:2px;">TAXA</div></div>\'+' +
+        'var headerGrad=isRun?"linear-gradient(90deg,rgba(99,102,241,.12) 0%,rgba(34,211,238,.07) 100%)":s.paused?"linear-gradient(90deg,rgba(245,158,11,.1) 0%,rgba(249,115,22,.07) 100%)":"rgba(255,255,255,.025)";' +
+        'var pctBarFull=total>0?\'<div style="margin:0 14px 10px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;"><div style="height:100%;width:\'+pct+\'%;background:linear-gradient(90deg,\'+( pct>=70?"#10b981,#22d3ee":pct>=50?"#f59e0b,#f97316":"#ef4444,#f43f5e")+\');border-radius:2px;transition:width .8s ease;"></div></div>\':"";' +
+        'var statsGrid=total>0?\'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin:0 14px 10px;">\'+' +
+          '\'<div class="_pf-s" style="background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.15);border-radius:10px;padding:8px 4px;text-align:center;">\'+' +
+            '\'<div style="font-size:18px;font-weight:800;color:#10b981;font-family:\'SF Mono\',\'Courier New\',monospace;line-height:1;">\'+s.acertos+\'</div>\'+' +
+            '\'<div style="font-size:7px;color:#334155;letter-spacing:1.2px;margin-top:3px;font-weight:700;">ACERTOS</div></div>\'+' +
+          '\'<div class="_pf-s" style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:8px 4px;text-align:center;">\'+' +
+            '\'<div style="font-size:18px;font-weight:800;color:#f87171;font-family:\'SF Mono\',\'Courier New\',monospace;line-height:1;">\'+s.erros+\'</div>\'+' +
+            '\'<div style="font-size:7px;color:#334155;letter-spacing:1.2px;margin-top:3px;font-weight:700;">ERROS</div></div>\'+' +
+          '\'<div class="_pf-s" style="background:rgba(\'+(pct>=70?"16,185,129":pct>=50?"245,158,11":"239,68,68")+\',.07);border:1px solid rgba(\'+(pct>=70?"16,185,129":pct>=50?"245,158,11":"239,68,68")+\',.18);border-radius:10px;padding:8px 4px;text-align:center;">\'+' +
+            '\'<div style="font-size:18px;font-weight:800;color:\'+pctCor+\';font-family:\'SF Mono\',\'Courier New\',monospace;line-height:1;">\'+pct+\'%</div>\'+' +
+            '\'<div style="font-size:7px;color:#334155;letter-spacing:1.2px;margin-top:3px;font-weight:700;">TAXA</div></div>\'+' +
           '\'</div>\':"";' +
-        'var filaRow=_pfFila.length>0?\'<div onclick="if(window._pfFila&&window._pfFila[0])window.open(window._pfFila[0].link,\\"_self\\")" style="display:flex;align-items:center;gap:6px;margin-top:8px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:5px 8px;cursor:pointer;">\'+' +
-          '\'<span style="font-size:12px;">&#128203;</span>\'+' +
-          '\'<span style="font-size:10px;color:#fca5a5;font-weight:600;flex:1;">\'+_pfFila.length+\' revis&#227;o\'+(_pfFila.length>1?"&#245;es pendentes":" pendente")+\'</span>\'+' +
-          '\'<span style="font-size:9px;color:#ef4444;font-weight:800;">Alt+R</span></div>\':"";' +
-        'el.style.cssText="position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:default;background:rgba(9,11,20,.94);border:1px solid rgba(99,102,241,.3);border-radius:18px;width:220px;padding:14px;box-shadow:0 8px 40px rgba(0,0,0,.7);font-family:sans-serif;user-select:none;transition:all .2s;color:#f1f5f9;";' +
-        'var statusTxt=s.paused?"PAUSADO":isRun?"EM ANDAMENTO":"PAINEL FISCAL";' +
-        'el.innerHTML=\'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">\'+' +
-          '\'<div style="display:flex;align-items:center;gap:6px;">\'+dot+\'<span style="font-size:9px;color:#64748b;letter-spacing:1px;font-weight:600;">\'+statusTxt+\'</span></div>\'+' +
-          '\'<span onclick="event.stopPropagation();_pfMin=true;_pfExpanded=false;pfRenderWidget();" style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:#64748b;">&#8722;</span>\'+' +
-          '\'</div>\'+discL+' +
-          '\'<div style="font-family:monospace;font-size:28px;font-weight:700;color:\'+timerCor+\';letter-spacing:2px;line-height:1;text-align:center;padding:4px 0;">\'+pfFmt(s.elapsed)+\'</div>\'+' +
-          'statsRow+filaRow;' +
+        'var filaRow=_pfFila.length>0?\'<div style="display:flex;align-items:center;gap:7px;margin:0 14px 12px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.18);border-radius:10px;padding:7px 10px;cursor:pointer;" onclick="if(window._pfFila&&window._pfFila[0])window.open(window._pfFila[0].link,\\"_self\\")">\'+' +
+          '\'<div style="width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 7px #ef4444;animation:_pfPulse 1.2s ease infinite;flex-shrink:0;"></div>\'+' +
+          '\'<span style="font-size:10px;color:#fca5a5;font-weight:700;flex:1;">\'+_pfFila.length+\' revis\\u00e3o\'+(_pfFila.length>1?"\\u00f5es":"")+\' pendente\'+(_pfFila.length>1?"s":"")+\'</span>\'+' +
+          '\'<kbd style="font-size:8px;color:#64748b;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:monospace;">Alt+R</kbd></div>\':"";' +
+        'el.style.cssText="position:fixed;bottom:20px;right:20px;z-index:2147483647;cursor:default;background:linear-gradient(170deg,rgba(10,12,24,.97) 0%,rgba(6,8,18,.99) 100%);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid rgba(99,102,241,.22);border-radius:20px;width:240px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.04) inset,0 0 50px rgba(99,102,241,.07);font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;user-select:none;animation:_pfSlideUp .3s cubic-bezier(.16,1,.3,1);";' +
+        'el.innerHTML=\'<div style="background:\'+headerGrad+\';padding:11px 12px 10px;border-bottom:1px solid rgba(255,255,255,.05);">\'+' +
+          '\'<div style="display:flex;align-items:center;justify-content:space-between;">\'+' +
+            '\'<div style="display:flex;align-items:center;gap:7px;">\'+' +
+              '\'<div style="width:7px;height:7px;border-radius:50%;background:\'+stCor+\';\'+( isRun?"animation:_pfPulse 2s ease infinite;box-shadow:0 0 8px "+stCor+"":"")+\'"></div>\'+' +
+              '\'<span style="font-size:8.5px;font-weight:700;color:\'+statusLabelCor+\';letter-spacing:1.5px;">\'+statusLabel+\'</span>\'+' +
+            '\'</div>\'+' +
+            '\'<span onclick="event.stopPropagation();_pfMin=true;_pfExpanded=false;pfRenderWidget();" class="_pf-mb" style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;font-weight:700;color:#475569;transition:all .15s;line-height:1;">&#8722;</span>\'+' +
+          '\'</div>\'+' +
+          '(s.discName?\'<div style="font-size:9px;letter-spacing:1.8px;color:#818cf8;text-transform:uppercase;font-weight:700;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\'+s.discName+\'</div>\':"") +' +
+        '\'</div>\'+' +
+        '\'<div style="padding:14px 14px 10px;text-align:center;">\'+' +
+          '\'<div style="font-family:\'SF Mono\',\'Courier New\',monospace;font-size:32px;font-weight:700;color:\'+timerCor+\';letter-spacing:3px;line-height:1;text-shadow:0 0 28px \'+timerCor+\'35;">\'+pfFmt(s.elapsed)+\'</div>\'+' +
+          '(difBadge?\'<div style="margin-top:8px;">\'+difBadge+\'</div>\':"") +' +
+        '\'</div>\'+' +
+        'pctBarFull+statsGrid+filaRow;' +
         'window._pfFila=_pfFila;' +
       '}' +
       'window._pfMinToggle=function(){_pfMin=!_pfMin;pfRenderWidget();};' +
@@ -18831,7 +18910,7 @@ window.addEventListener('message', function(e){
       'window.addEventListener("message",function(ev){' +
         'if(!ev.data||!ev.data.type)return;' +
         'if(ev.data.type==="TEC_STATS_UPDATE"){' +
-          '_pfStats={elapsed:ev.data.elapsed||0,acertos:ev.data.acertos||0,erros:ev.data.erros||0,resolved:ev.data.resolved||0,running:!!ev.data.running,paused:!!ev.data.paused,discName:ev.data.discName||""};' +
+          '_pfStats={elapsed:ev.data.elapsed||0,acertos:ev.data.acertos||0,erros:ev.data.erros||0,resolved:ev.data.resolved||0,running:!!ev.data.running,paused:!!ev.data.paused,discName:ev.data.discName||"",dificuldade:ev.data.dificuldade||_pfStats.dificuldade||""};' +
           'pfRenderWidget();return;' +
         '}' +
         'if(ev.data.type==="PF_FILA_READY"){' +
@@ -18879,16 +18958,78 @@ window.addEventListener('message', function(e){
           '}' +
         '}' +
       '}' +
+      'var _pfDesempenhoOpen=false,_pfAutoFetchKey="";' +
+      'function scanDesempenho(){' +
+        'var tx=document.body.innerText||"";' +
+        'if(tx.indexOf("Meu Desempenho")<0)return;' +
+        'var qi=getInfo();if(!qi.qid)return;' +
+        'var meuIdx=tx.indexOf("Meu Desempenho");' +
+        'var globalTx=meuIdx>=0?tx.slice(0,meuIdx):tx;' +
+        'var myTx=meuIdx>=0?tx.slice(meuIdx):"";' +
+        // erros pessoais (Meu Desempenho)
+        'var errouArr=myTx.match(/\\bErrou\\b/gi);' +
+        'var myErrors=errouArr?errouArr.length:0;' +
+        'var myErrNumM=myTx.match(/(\\d+)\\s*(?:erros?\\b|[x\\xd7]\\s*errou)/i);' +
+        'if(myErrNumM){var ne=parseInt(myErrNumM[1]);if(ne>myErrors)myErrors=ne;}' +
+        'var myResM=myTx.match(/Total de resolu[\\u00e7c][\\u00f5o]es[:\\s]+(\\d+)/i);' +
+        'var myTotal=myResM?parseInt(myResM[1]):0;' +
+        // dificuldade (do Desempenho Geral)
+        'var difM=globalTx.match(/Dificuldade:\\s*([^\\n\\r]+)/i);' +
+        'var dificuldade=difM?difM[1].trim():"";' +
+        'qi.myErrors=myErrors;qi.myTotal=myTotal;qi.dificuldade=dificuldade;' +
+        'if(dificuldade&&_pfStats.dificuldade!==dificuldade){_pfStats.dificuldade=dificuldade;pfRenderWidget();}' +
+        'send("desempenho_detail",qi);' +
+      '}' +
+      // Auto-busca desempenho sem exigir clique do usuário
+      'function autoFetchDesempenho(snapQid){' +
+        'var qi=getInfo();' +
+        'if(snapQid&&qi.qid&&qi.qid!==snapQid)return;' +
+        'var dKey=(qi.qid||window.location.href)+"_"+A+"_"+E;' +
+        'if(_pfAutoFetchKey===dKey)return;' +
+        'var tx=document.body.innerText||"";' +
+        'var meuIdx=tx.indexOf("Meu Desempenho");' +
+        'var myTx=meuIdx>=0?tx.slice(meuIdx):"";' +
+        'var hasData=meuIdx>=0&&(myTx.indexOf("Total de resolu")>=0||myTx.indexOf("Errou")>=0||myTx.indexOf("Acertou")>=0);' +
+        'if(hasData){_pfAutoFetchKey=dKey;scanDesempenho();return;}' +
+        // Dados não carregados: abre seção programaticamente
+        'var clickables=document.querySelectorAll("button,[role=\'button\']");' +
+        'for(var _ci=0;_ci<clickables.length;_ci++){' +
+          'var _ct=(clickables[_ci].textContent||"").trim();' +
+          'if(/desempenho/i.test(_ct)&&!/fechar|esconder/i.test(_ct)&&_ct.length<80){' +
+            '_pfAutoFetchKey=dKey;' +
+            'clickables[_ci].click();' +
+            'setTimeout(function(){' +
+              'scanDesempenho();' +
+              'setTimeout(function(){' +
+                'var btns=document.querySelectorAll("button");' +
+                'for(var _bi=0;_bi<btns.length;_bi++){if(/fechar/i.test(btns[_bi].textContent||"")){btns[_bi].click();break;}}' +
+              '},350);' +
+            '},750);' +
+            'break;' +
+          '}' +
+        '}' +
+      '}' +
       'function check(){' +
         // Detecta navegação para nova questão → importa histórico após 1,2s (tempo para DOM carregar)
-        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
+        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;_pfDesempenhoOpen=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
+        // Detecta abertura manual do painel "Desempenho nesta questão"
+        'var tx0=document.body.innerText||"";' +
+        'var isDesempenhoOpen=tx0.indexOf("Meu Desempenho")>=0&&tx0.indexOf("Desempenho Geral")>=0;' +
+        'if(isDesempenhoOpen&&!_pfDesempenhoOpen){_pfDesempenhoOpen=true;setTimeout(scanDesempenho,400);}' +
+        'else if(!isDesempenhoOpen){_pfDesempenhoOpen=false;}' +
         'var s=parse();if(!s)return;' +
         'var da=s.a-A,de=s.e-E;' +
         // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
         'if(Date.now()-_pfConnectTime<3000){if(da>0)A=s.a;if(de>0)E=s.e;return;}' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
-        // Erro: captura qid/url AGORA (antes da página mudar), depois relê
-        // myErrors do modal "Meu Desempenho" que pode demorar >500ms para carregar
+        // Após qualquer resposta: reseta estado e agenda busca automática do desempenho
+        // (necessário em cadernos onde URL não muda entre questões)
+        'if(da>0||de>0){' +
+          '_pfDesempenhoOpen=false;' +
+          'var _snapQidD=getInfo().qid;' +
+          'setTimeout(function(){autoFetchDesempenho(_snapQidD);},1500);' +
+          'setTimeout(function(){autoFetchDesempenho(_snapQidD);},4000);' +
+        '}' +
         'if(da>0||de>0){setTimeout(checkCadernoEnd,800);}' +
         'if(de>0){' +
           'var _de=de;E=s.e;' +
