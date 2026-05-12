@@ -24,7 +24,7 @@
   let _pfMin = false;
   let _pfHiddenSince = 0;
   let _pfFila = [];
-  let _pfStats = { elapsed: 0, acertos: 0, erros: 0, resolved: 0, running: false, paused: false, discName: '' };
+  let _pfStats = { elapsed: 0, acertos: 0, erros: 0, resolved: 0, running: false, paused: false, discName: '', dificuldade: '' };
   let el = null; // widget badge
 
   // ── Comunicação com painel ────────────────────────────────────────────────
@@ -174,6 +174,12 @@
     qi.myTotal     = myTotal;
     qi.dificuldade = dificuldade;
 
+    // Atualiza widget imediatamente com a dificuldade
+    if (dificuldade && _pfStats.dificuldade !== dificuldade) {
+      _pfStats.dificuldade = dificuldade;
+      pfRenderWidget();
+    }
+
     send('desempenho_detail', qi);
   }
 
@@ -306,12 +312,15 @@
     const s = document.createElement('style');
     s.id = '_pfStyles';
     s.textContent = `
-      @keyframes _pfPulse{0%,100%{opacity:1}50%{opacity:.4}}
-      @keyframes _pfSlideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-      #_pfBadge *{box-sizing:border-box;}
-      #_pfBadge { animation: _pfSlideUp .3s ease; }
-      ._pf-stat:hover { background: rgba(255,255,255,.06) !important; }
-    `;
+    @keyframes _pfPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
+    @keyframes _pfGlow{0%,100%{box-shadow:0 0 0 1px rgba(99,102,241,.3),0 8px 32px rgba(0,0,0,.7)}50%{box-shadow:0 0 0 1px rgba(99,102,241,.6),0 8px 40px rgba(99,102,241,.25),0 0 20px rgba(99,102,241,.15)}}
+    @keyframes _pfSlideUp{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+    #_pfBadge{animation:_pfSlideUp .35s cubic-bezier(.16,1,.3,1);}
+    #_pfBadge *{box-sizing:border-box;}
+    ._pf-s{transition:transform .15s;}
+    ._pf-s:hover{transform:scale(1.05);}
+    ._pf-mb:hover{background:rgba(255,255,255,.12)!important;color:#e2e8f0!important;}
+  `;
     document.head.appendChild(s);
   }
 
@@ -515,7 +524,8 @@
         resolved: ev.data.resolved || 0,
         running: !!ev.data.running,
         paused: !!ev.data.paused,
-        discName: ev.data.discName || ''
+        discName: ev.data.discName || '',
+      dificuldade: ev.data.dificuldade || _pfStats.dificuldade || ''
       };
       pfRenderWidget();
       // Atualiza badge da extensão via background
