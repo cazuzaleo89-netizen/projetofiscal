@@ -18715,9 +18715,21 @@ window.addEventListener('message', function(e){
         '}return;' +
       '}' +
       // Captura referência ao painel UMA VEZ no clique (gesto do usuário = sem popup blocker)
-      'var _pfw=null;' +
+      'var _PANEL_URL="https://cazuzaleo89-netizen.github.io/projetofiscal/";' +
+      'var _pfw=null,_pfNewPanel=false;' +
       'if(window.opener&&!window.opener.closed){_pfw=window.opener;}' +
-      'else{try{_pfw=window.open("","_pfPanel");}catch(x){}}' +
+      'else{' +
+        'try{' +
+          'var _w=window.open("","_pfPanel");' +
+          'if(_w&&!_w.closed){' +
+            // Se retornou janela em branco (about:blank), navega para o painel
+            'var _isBlank=false;' +
+            'try{_isBlank=!_w.location.href||_w.location.href==="about:blank";}catch(e){_isBlank=false;}' +
+            'if(_isBlank){_w.location.href=_PANEL_URL;_pfNewPanel=true;}' +
+            '_pfw=_w;' +
+          '}' +
+        '}catch(x){}' +
+      '}' +
       'var A=0,E=0,_lastUrl="";' +
       'function parse(){' +
         'var tx=document.body.innerText||"";' +
@@ -19064,8 +19076,10 @@ window.addEventListener('message', function(e){
       'var obs=new MutationObserver(check);' +
       'obs.observe(document.body,{childList:true,subtree:true,characterData:true});' +
       // badge — verde se conectou, laranja se não encontrou o painel
-      'var connected=send("ping",null);' +
+      // Se painel estava aberto: conecta imediatamente; se acabou de abrir: aguarda 2.8s para carregar
+      'var connected=!_pfNewPanel&&send("ping",null);' +
       'if(connected){sendSession();_lastUrl=window.location.href;setTimeout(scanHistory,1500);}' +
+      'else if(_pfNewPanel){setTimeout(function(){if(send("ping",null)){sendSession();_lastUrl=window.location.href;setTimeout(scanHistory,1500);pfRenderWidget();}},2800);}' +
       'var el=document.createElement("div");' +
       'el.id="_pfBadge";' +
       'el.title="Painel Fiscal Monitor | passe o mouse para stats | Alt+R pr\\u00f3xima da fila";' +
