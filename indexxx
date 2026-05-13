@@ -5129,6 +5129,7 @@ const state={disciplines:[],sessions:[],schedule:{},completedSlots:{},dailyGoal:
 };
 let timer={running:false,paused:false,seconds:0,subject:'',subjectId:'',interval:null};
 let tecTabWindow=null; // referência ao tab TEC para postMessage reverso
+let _tecLastDific=''; // última dificuldade recebida via desempenho_detail
 let tecTabInactiveTimer=null;
 let tecLastActivityAt=Date.now();
 let editingSlot=null;
@@ -16798,6 +16799,7 @@ function tecPushStats() {
     running: !!cronState.running,
     paused: !!cronState.paused,
     discName: cronState.discName || '',
+    dificuldade: _tecLastDific || '',
   };
   try { tecTabWindow.postMessage(stats, '*'); } catch(e) {}
 }
@@ -18453,6 +18455,7 @@ window.addEventListener('message', function(e){
       var dMyErr   = parseInt(e.data.myErrors) || 0;
       var dMyTotal = parseInt(e.data.myTotal)  || 0;
       var dDific   = e.data.dificuldade || '';
+      if(dDific) _tecLastDific = dDific;
       var dUrl     = e.data.url || ('https://www.tecconcursos.com.br/questoes/'+dqId);
       var dDesc    = e.data.desc    || 'Questão #'+dqId;
       var dMateria = e.data.materia || '';
@@ -18505,6 +18508,8 @@ window.addEventListener('message', function(e){
         }
         if(dMyErr > 0){ saveState(); try{ wrongHistoryUpdateBadge(); }catch(x){} }
       }
+      // Atualiza widget TEC com dificuldade recém-recebida
+      setTimeout(tecPushStats, 150);
       return;
     }
 
