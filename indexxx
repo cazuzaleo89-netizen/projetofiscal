@@ -19024,24 +19024,50 @@ window.addEventListener('message', function(e){
           '}' +
         '}' +
       '}' +
+      'var _pfTextDetectKey="";' +
       'function check(){' +
-        // Detecta navegação para nova questão → importa histórico após 1,2s (tempo para DOM carregar)
-        'var _cu=window.location.href;if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;_pfDesempenhoOpen=false;setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
-        // Detecta abertura manual do painel "Desempenho nesta questão"
+        'var _cu=window.location.href;' +
+        'if(_cu!==_lastUrl){_lastUrl=_cu;_pfEndSent=false;_pfDesempenhoOpen=false;_pfTextDetectKey="";setTimeout(scanHistory,1200);setTimeout(checkCadernoEnd,1500);}' +
         'var tx0=document.body.innerText||"";' +
         'var isDesempenhoOpen=tx0.indexOf("Meu Desempenho")>=0&&tx0.indexOf("Desempenho Geral")>=0;' +
         'if(isDesempenhoOpen&&!_pfDesempenhoOpen){_pfDesempenhoOpen=true;setTimeout(scanDesempenho,400);}' +
         'else if(!isDesempenhoOpen){_pfDesempenhoOpen=false;}' +
-        'var s=parse();if(!s)return;' +
+        'var s=parse();' +
+        'var _warm=Date.now()-_pfConnectTime<3000;' +
+        // ── Fallback: detecção por texto quando não há contador "X Acertos e Y Erros" ──
+        'if(!s){' +
+          'var _hasAc=/voc\\u00ea acertou|acertou!\\s*mandou/i.test(tx0);' +
+          'var _hasEr=/voc\\u00ea errou/i.test(tx0);' +
+          'if((_hasAc||_hasEr)&&!_warm){' +
+            'var _qi=getInfo();' +
+            'var _key=(_qi.qid||_cu)+(_hasAc?"_c":"_e");' +
+            'if(_key!==_pfTextDetectKey){' +
+              '_pfTextDetectKey=_key;' +
+              '_pfDesempenhoOpen=false;' +
+              'var _snapQ=_qi.qid;' +
+              'if(_hasAc){send("correct",null);}' +
+              'else{' +
+                'send("wrong_fast",_qi);' +
+                'setTimeout(function(){' +
+                  'var qi2=getInfo();' +
+                  'if(_snapQ&&qi2.qid!==_snapQ){qi2.qid=_snapQ;qi2.url=_qi.url;qi2.desc=_qi.desc;qi2.materia=_qi.materia;qi2.assunto=_qi.assunto;}' +
+                  'send("wrong",qi2);' +
+                '},500);' +
+              '}' +
+              'setTimeout(function(){autoFetchDesempenho(_snapQ);},1500);' +
+              'setTimeout(function(){autoFetchDesempenho(_snapQ);},4000);' +
+              'setTimeout(checkCadernoEnd,800);' +
+            '}' +
+          '}else if(!_hasAc&&!_hasEr){_pfTextDetectKey="";}' +
+          'return;' +
+        '}' +
         'var da=s.a-A,de=s.e-E;' +
-        // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
-        'if(Date.now()-_pfConnectTime<3000){if(da>0)A=s.a;if(de>0)E=s.e;return;}' +
+        'if(_warm){if(da>0)A=s.a;if(de>0)E=s.e;return;}' +
         'if(da>0){for(var i=0;i<da;i++)send("correct",null);A=s.a;}' +
-        // Após qualquer resposta: reseta estado e agenda busca automática do desempenho
-        // (necessário em cadernos onde URL não muda entre questões)
         'if(da>0||de>0){' +
           '_pfDesempenhoOpen=false;' +
           'var _snapQidD=getInfo().qid;' +
+          '_pfTextDetectKey=(_snapQidD||_cu)+(da>0?"_c":"_e");' +
           'setTimeout(function(){autoFetchDesempenho(_snapQidD);},1500);' +
           'setTimeout(function(){autoFetchDesempenho(_snapQidD);},4000);' +
         '}' +
