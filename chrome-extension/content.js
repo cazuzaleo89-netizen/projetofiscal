@@ -21,6 +21,7 @@
   let _pfEndSent = false;
   let _pfDesempenhoOpen = false; // rastreia se painel "Desempenho nesta questão" está aberto
   let _pfAutoFetchKey = '';     // dedup para autoFetchDesempenho (qid_A_E)
+  let _pfTextDetectKey = '';    // dedup para detecção por texto (fallback sem contador)
   let _pfMin = false;
   let _pfHiddenSince = 0;
   let _pfFila = [];
@@ -251,13 +252,13 @@
       _lastUrl = cu;
       _pfEndSent = false;
       _pfDesempenhoOpen = false;
+      _pfTextDetectKey = '';
       setTimeout(scanHistory, 1200);
       setTimeout(checkCadernoEnd, 1500);
     }
-    const s = parse();
+    const tx0 = document.body.innerText || '';
 
     // Detecta abertura do painel "Desempenho nesta questão" (usuário abre manualmente)
-    const tx0 = document.body.innerText || '';
     const isDesempenhoOpen = tx0.includes('Meu Desempenho') && tx0.includes('Desempenho Geral');
     if (isDesempenhoOpen && !_pfDesempenhoOpen) {
       _pfDesempenhoOpen = true;
@@ -265,18 +266,54 @@
     } else if (!isDesempenhoOpen) {
       _pfDesempenhoOpen = false;
     }
-    if (!s) return;
+
+    const s = parse();
+    const warmup = Date.now() - _pfConnectTime < 3000;
+
+    // ── Fallback: detecção por texto quando não há contador "X Acertos e Y Erros" ──
+    // Usado em questões avulsas ou cadernos que não exibem o contador no DOM.
+    if (!s) {
+      const hasAcertou = /você acertou|acertou!\s*mandou/i.test(tx0);
+      const hasErrou   = /você errou/i.test(tx0);
+      if ((hasAcertou || hasErrou) && !warmup) {
+        const qi  = getInfo();
+        const key = (qi.qid || cu) + '_' + (hasAcertou ? 'c' : 'e');
+        if (key !== _pfTextDetectKey) {
+          _pfTextDetectKey = key;
+          _pfDesempenhoOpen = false;
+          const _snapQid = qi.qid;
+          if (hasAcertou) {
+            send('correct', null);
+          } else {
+            send('wrong_fast', qi);
+            setTimeout(() => {
+              const qi2 = getInfo();
+              if (_snapQid && qi2.qid !== _snapQid) { qi2.qid = _snapQid; qi2.url = qi.url; qi2.desc = qi.desc; qi2.materia = qi.materia; qi2.assunto = qi.assunto; }
+              send('wrong', qi2);
+            }, 500);
+          }
+          setTimeout(() => autoFetchDesempenho(_snapQid), 1500);
+          setTimeout(() => autoFetchDesempenho(_snapQid), 4000);
+          setTimeout(checkCadernoEnd, 800);
+        }
+      } else if (!hasAcertou && !hasErrou) {
+        // Resultado sumiu do DOM (usuário clicou Próxima) — reseta para detectar nova resposta
+        _pfTextDetectKey = '';
+      }
+      return;
+    }
+
+    // ── Primary: contador "X Acertos e Y Erros" presente ──
     const da = s.a - A, de = s.e - E;
-    // Warmup: nos primeiros 3s só atualiza baseline sem enviar msgs (evita burst do SPA)
-    if (Date.now() - _pfConnectTime < 3000) { if (da > 0) A = s.a; if (de > 0) E = s.e; return; }
+    if (warmup) { if (da > 0) A = s.a; if (de > 0) E = s.e; return; }
     if (da > 0) { for (let i = 0; i < da; i++) send('correct', null); A = s.a; }
     if (da > 0 || de > 0) {
-      // Reset do estado de desempenho: permite re-scan quando dados da nova questão carregam
-      // Necessário em cadernos onde a URL não muda entre questões
       _pfDesempenhoOpen = false;
       const _snapQidD = getInfo().qid;
-      setTimeout(() => autoFetchDesempenho(_snapQidD), 1500);  // tentativa principal
-      setTimeout(() => autoFetchDesempenho(_snapQidD), 4000);  // fallback se DOM demorar
+      // Marca como enviado via counter para evitar re-envio via fallback de texto
+      _pfTextDetectKey = (_snapQidD || cu) + '_' + (da > 0 ? 'c' : 'e');
+      setTimeout(() => autoFetchDesempenho(_snapQidD), 1500);
+      setTimeout(() => autoFetchDesempenho(_snapQidD), 4000);
     }
     if (da > 0 || de > 0) setTimeout(checkCadernoEnd, 800);
     if (de > 0) {
