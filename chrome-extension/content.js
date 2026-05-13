@@ -34,35 +34,25 @@
   function findPanelWindow() {
     // Tenta via opener (usuário abriu TEC a partir do painel)
     if (window.opener && !window.opener.closed) return window.opener;
-    // Tenta via nome de janela (bookmarklet legacy compat)
-    try { const w = window.open('', '_pfPanel'); if (w && !w.closed && w !== window) return w; } catch (x) { /* */ }
+    // Não abre nova aba — usa relay da extensão para comunicação cruzada
     return null;
   }
 
   function send(result, qi) {
     const msg = { type: 'TEC_QUESTION', result };
     if (qi) Object.assign(msg, qi);
-    // Tenta via janela salva
+    // Tenta via janela opener (quando painel abriu TEC como popup)
     if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
+      try { _pfw.postMessage(msg, '*'); } catch (x) { /* */ }
     }
-    // Refaz busca
-    _pfw = findPanelWindow();
-    if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
-    }
-    // Fallback: background relay via extension messaging
+    // Relay via extensão (principal canal quando painel está em aba separada)
     try { chrome.runtime.sendMessage({ type: 'RELAY_TO_PANEL', payload: msg }); return true; } catch (x) { /* */ }
     return false;
   }
 
   function sendRaw(msg) {
     if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
-    }
-    _pfw = findPanelWindow();
-    if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
+      try { _pfw.postMessage(msg, '*'); } catch (x) { /* */ }
     }
     try { chrome.runtime.sendMessage({ type: 'RELAY_TO_PANEL', payload: msg }); return true; } catch (x) { /* */ }
     return false;
@@ -70,8 +60,20 @@
 
   // ── Parsers ───────────────────────────────────────────────────────────────
 
+  function getPageText() {
+    // Exclui o widget do texto para evitar falso positivo nos padrões de parse
+    if (!el) return document.body.innerText || '';
+    const parts = [];
+    for (const child of document.body.childNodes) {
+      if (child === el) continue;
+      if (child.nodeType === Node.TEXT_NODE) { parts.push(child.textContent); continue; }
+      if (child.nodeType === Node.ELEMENT_NODE) { parts.push(child.innerText || child.textContent || ''); }
+    }
+    return parts.join('\n') || document.body.innerText || '';
+  }
+
   function parse() {
-    const tx = document.body.innerText || '';
+    const tx = getPageText();
     let m = tx.match(/(\d+)\s+Acertos?\s+e\s+(\d+)\s+Erros?/i);
     if (!m) m = tx.match(/Acertos?[:\s]+(\d+)[^\d]+Erros?[:\s]+(\d+)/i);
     return m ? { a: parseInt(m[1]), e: parseInt(m[2]) } : null;
@@ -120,7 +122,7 @@
   }
 
   function sendSession() {
-    const tx = document.body.innerText || '';
+    const tx = getPageText();
     const totM = tx.match(/Quest[aã]o\s+\d+\s+de\s+(\d+)/i);
     const total = totM ? parseInt(totM[1]) : 0;
     const matM = tx.match(/Mat[eé]ria:\s*([^\n\r×]+)/i);
@@ -257,7 +259,7 @@
       setTimeout(scanHistory, 1200);
       setTimeout(checkCadernoEnd, 1500);
     }
-    const tx0 = document.body.innerText || '';
+    const tx0 = getPageText();
 
     // Detecta abertura do painel "Desempenho nesta questão" (usuário abre manualmente)
     const isDesempenhoOpen = tx0.includes('Meu Desempenho') && tx0.includes('Desempenho Geral');
@@ -274,8 +276,12 @@
     // ── Fallback: detecção por texto quando não há contador "X Acertos e Y Erros" ──
     // Usado em questões avulsas ou cadernos que não exibem o contador no DOM.
     if (!s) {
-      const hasAcertou = /você acertou|acertou!\s*mandou/i.test(tx0);
-      const hasErrou   = /você errou/i.test(tx0);
+      // Padrões amplos para cobrir variações da TEC: "Você acertou", "Acertou!", "Mandou bem", "Resposta correta"
+      const hasAcertou = /voc[êe]\s*acertou|acertou[!\s]|mandou\s*bem|resposta\s*correta/i.test(tx0);
+      const hasErrou   = /voc[êe]\s*errou|errou[!\s]|resposta\s*errada|resposta\s*incorreta/i.test(tx0);
+      if (hasAcertou || hasErrou) {
+        console.log('[PF] texto detectado:', hasAcertou ? 'ACERTO' : 'ERRO', '| key atual:', _pfTextDetectKey, '| warmup:', warmup);
+      }
       if ((hasAcertou || hasErrou) && !warmup) {
         const qi  = getInfo();
         const key = (qi.qid || cu) + '_' + (hasAcertou ? 'c' : 'e');
@@ -287,12 +293,14 @@
             _pfLocalAce++;
             _pfStats.acertos = Math.max(_pfStats.acertos, _pfLocalAce);
             _pfStats.resolved = _pfLocalAce + _pfLocalErr;
+            console.log('[PF] ACERTO contabilizado! local ace=', _pfLocalAce, 'stats=', JSON.stringify(_pfStats));
             pfRenderWidget();
             send('correct', null);
           } else {
             _pfLocalErr++;
             _pfStats.erros = Math.max(_pfStats.erros, _pfLocalErr);
             _pfStats.resolved = _pfLocalAce + _pfLocalErr;
+            console.log('[PF] ERRO contabilizado! local err=', _pfLocalErr, 'stats=', JSON.stringify(_pfStats));
             pfRenderWidget();
             send('wrong_fast', qi);
             setTimeout(() => {
@@ -379,6 +387,11 @@
 
   function pfRenderWidget() {
     if (!el) return;
+    // Re-anexa ao DOM se foi removido (ex: SPA que substitui conteúdo do body)
+    if (!document.body.contains(el)) {
+      console.log('[PF] widget removido do DOM — re-anexando');
+      document.body.appendChild(el);
+    }
     pfInjectStyles();
 
     const s = _pfStats;
@@ -649,18 +662,31 @@
     const init0 = parse();
     if (init0) { A = init0.a; E = init0.e; }
 
-    const connected = send('ping', null);
-    if (connected) {
-      sendSession();
-      _lastUrl = window.location.href;
-      setTimeout(scanHistory, 1500);
-    }
+    // Tenta conexão via relay da extensão (não depende de window.opener)
+    try { chrome.runtime.sendMessage({ type: 'RELAY_TO_PANEL', payload: { type: 'TEC_QUESTION', result: 'ping' } }); } catch (x) { /* */ }
+    const connected = true; // widget sempre mostra (modo autônomo com contadores locais)
+
+    sendSession();
+    _lastUrl = window.location.href;
+    setTimeout(scanHistory, 1500);
 
     createWidget(connected);
+    console.log('[PF] Monitor TEC iniciado. A=', A, 'E=', E, 'url=', window.location.href);
 
     const obs = new MutationObserver(check);
     obs.observe(document.body, { childList: true, subtree: true, characterData: true });
     window._pfM = { obs, el, win: _pfw };
+
+    // Polling a cada 500ms como fallback para SPAs que não disparam MutationObserver
+    setInterval(() => {
+      // Re-cria widget se foi removido do DOM
+      if (!document.getElementById('_pfBadge')) {
+        console.log('[PF] _pfBadge ausente — recriando widget');
+        el = null;
+        createWidget(true);
+      }
+      check();
+    }, 500);
 
     // Notifica background que o content script está ativo nesta aba
     try { chrome.runtime.sendMessage({ type: 'CONTENT_READY', connected, url: window.location.href }); } catch (x) { /* */ }
