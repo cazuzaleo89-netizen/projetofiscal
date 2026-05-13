@@ -26,6 +26,7 @@
   let _pfHiddenSince = 0;
   let _pfFila = [];
   let _pfStats = { elapsed: 0, acertos: 0, erros: 0, resolved: 0, running: false, paused: false, discName: '', dificuldade: '' };
+  let _pfLocalAce = 0, _pfLocalErr = 0; // contadores locais (não dependem do cronômetro)
   let el = null; // widget badge
 
   // ── Comunicação com painel ────────────────────────────────────────────────
@@ -283,8 +284,16 @@
           _pfDesempenhoOpen = false;
           const _snapQid = qi.qid;
           if (hasAcertou) {
+            _pfLocalAce++;
+            _pfStats.acertos = Math.max(_pfStats.acertos, _pfLocalAce);
+            _pfStats.resolved = _pfLocalAce + _pfLocalErr;
+            pfRenderWidget();
             send('correct', null);
           } else {
+            _pfLocalErr++;
+            _pfStats.erros = Math.max(_pfStats.erros, _pfLocalErr);
+            _pfStats.resolved = _pfLocalAce + _pfLocalErr;
+            pfRenderWidget();
             send('wrong_fast', qi);
             setTimeout(() => {
               const qi2 = getInfo();
@@ -306,7 +315,7 @@
     // ── Primary: contador "X Acertos e Y Erros" presente ──
     const da = s.a - A, de = s.e - E;
     if (warmup) { if (da > 0) A = s.a; if (de > 0) E = s.e; return; }
-    if (da > 0) { for (let i = 0; i < da; i++) send('correct', null); A = s.a; }
+    if (da > 0) { _pfLocalAce += da; _pfStats.acertos = Math.max(_pfStats.acertos, _pfLocalAce); _pfStats.resolved = _pfLocalAce + _pfLocalErr; for (let i = 0; i < da; i++) send('correct', null); A = s.a; pfRenderWidget(); }
     if (da > 0 || de > 0) {
       _pfDesempenhoOpen = false;
       const _snapQidD = getInfo().qid;
@@ -374,25 +383,23 @@
 
     const s = _pfStats;
     const total = s.acertos + s.erros;
+    const resolved = s.resolved || total;
     const pct = total > 0 ? Math.round(s.acertos / total * 100) : null;
-    const pctColor = pct === null ? '#64748b' : pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
     const isRunning = s.running && !s.paused;
-    const stColor = s.paused ? '#f59e0b' : isRunning ? '#10b981' : '#6366f1';
-    const timerColor = s.paused ? '#fbbf24' : isRunning ? '#c7d2fe' : '#94a3b8';
     const statusLabel = s.paused ? 'PAUSADO' : isRunning ? 'EM ANDAMENTO' : 'PAINEL FISCAL';
-    const statusLabelColor = s.paused ? '#f59e0b' : isRunning ? '#34d399' : '#6366f1';
+    const statusColor = s.paused ? '#f59e0b' : isRunning ? '#34d399' : '#818cf8';
+    const dotColor    = s.paused ? '#f59e0b' : isRunning ? '#10b981' : '#4f46e5';
 
-    // dificuldade → cor e emoji
+    // dificuldade
     const difMap = {
-      'muito fácil': ['#10b981','rgba(16,185,129,.12)','rgba(16,185,129,.25)','⬇'],
-      'fácil':       ['#34d399','rgba(52,211,153,.1)', 'rgba(52,211,153,.2)', '↙'],
-      'médio':       ['#f59e0b','rgba(245,158,11,.12)','rgba(245,158,11,.25)','→'],
-      'difícil':     ['#f97316','rgba(249,115,22,.12)','rgba(249,115,22,.25)','↗'],
-      'muito difícil':['#ef4444','rgba(239,68,68,.12)', 'rgba(239,68,68,.25)', '⬆'],
+      'muito fácil': ['#10b981','rgba(16,185,129,.15)','⬇'],
+      'fácil':       ['#34d399','rgba(52,211,153,.12)', '↙'],
+      'médio':       ['#f59e0b','rgba(245,158,11,.15)', '→'],
+      'difícil':     ['#f97316','rgba(249,115,22,.15)', '↗'],
+      'muito difícil':['#ef4444','rgba(239,68,68,.15)',  '⬆'],
     };
     const difKey = (s.dificuldade || '').toLowerCase().trim();
-    const [difColor, difBg, difBorder, difArrow] = difMap[difKey] || ['#6366f1','rgba(99,102,241,.1)','rgba(99,102,241,.2)','●'];
-    const difBadge = s.dificuldade ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;letter-spacing:.7px;padding:2px 8px;border-radius:20px;background:${difBg};border:1px solid ${difBorder};color:${difColor};">${difArrow} ${s.dificuldade.toUpperCase()}</span>` : '';
+    const [difColor, difBg, difArrow] = difMap[difKey] || ['#6366f1','rgba(99,102,241,.1)','●'];
 
     // ── MINIMIZADO ──────────────────────────────────────────────────────────────
     if (_pfMin) {
@@ -410,115 +417,82 @@
       return;
     }
 
-    // ── COMPACTO (padrão) ───────────────────────────────────────────────────────
-    if (!_pfExpanded) {
-      el.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:2147483647;cursor:pointer;
-      background:linear-gradient(135deg,rgba(15,17,32,.95) 0%,rgba(8,10,20,.96) 100%);
-      backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-      border:1px solid rgba(99,102,241,.2);border-radius:14px;
-      padding:0;overflow:hidden;min-width:172px;
-      box-shadow:0 10px 36px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.04) inset,0 0 24px rgba(99,102,241,.06);
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      user-select:none;transition:all .2s cubic-bezier(.16,1,.3,1);`;
-      const pctBar = total > 0
-        ? `<div style="position:absolute;bottom:0;left:0;height:2px;width:${pct}%;background:linear-gradient(90deg,${stColor},${pct>=70?'#22d3ee':'#f87171'});transition:width .8s ease;"></div>`
-        : '';
-      const filaPin = _pfFila.length > 0
-        ? `<div style="width:7px;height:7px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px #ef4444;flex-shrink:0;animation:_pfPulse 1.2s ease infinite;"></div>`
-        : '';
-      const sideStrip = `<div style="position:absolute;top:0;left:0;bottom:0;width:3px;background:linear-gradient(180deg,${stColor} 0%,${isRunning?'#22d3ee':s.paused?'#f97316':'#4f46e5'} 100%);box-shadow:0 0 12px ${stColor}55;"></div>`;
-      const brandRow = `<div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:12px;line-height:1;">⚡</span>
-        <span style="font-size:8.5px;font-weight:800;letter-spacing:1.6px;color:${statusLabelColor};">${statusLabel}</span>
-        ${filaPin}
+    // ── FLIP-CLOCK WIDGET ───────────────────────────────────────────────────────
+    const sec = s.elapsed || 0;
+    const hh = Math.floor(sec / 3600);
+    const mm = Math.floor((sec % 3600) / 60);
+    const ss = sec % 60;
+    const pad = n => String(n).padStart(2,'0');
+
+    const digitCard = (val, dimmed) => `
+      <div style="background:rgba(255,255,255,${dimmed?'.03':'.07'});border:1px solid rgba(255,255,255,${dimmed?'.04':'.08'});
+        border-radius:10px;padding:8px 10px;min-width:38px;text-align:center;
+        box-shadow:0 2px 8px rgba(0,0,0,.4);">
+        <span style="font-family:'SF Mono','Courier New',monospace;font-size:26px;font-weight:700;
+          color:${dimmed?'#374151':'#e2e8f0'};letter-spacing:2px;line-height:1;">${val}</span>
       </div>`;
-      const statsRow = `<div style="display:flex;align-items:center;gap:5px;">
-            <span style="font-size:9px;color:#64748b;font-weight:600;letter-spacing:.5px;margin-right:1px;">✓</span>
-            <span style="font-size:11px;font-weight:800;color:${total>0?'#10b981':'#4b5563'};font-family:'SF Mono','Courier New',monospace;">${s.acertos}</span>
-            <span style="font-size:9px;color:#334155;">·</span>
-            <span style="font-size:9px;color:#64748b;font-weight:600;letter-spacing:.5px;margin-right:1px;">✗</span>
-            <span style="font-size:11px;font-weight:800;color:${total>0?'#f87171':'#4b5563'};font-family:'SF Mono','Courier New',monospace;">${s.erros}</span>
-            ${total > 0 ? `<span style="width:1px;height:10px;background:rgba(255,255,255,.08);margin:0 1px;"></span><span style="font-size:11px;font-weight:800;color:${pctColor};font-family:'SF Mono','Courier New',monospace;">${pct}%</span>` : ''}
-          </div>`;
-      el.innerHTML = `
-      <div style="position:relative;padding:9px 14px 9px 15px;">
-        ${sideStrip}
-        ${brandRow}
-        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:5px;">
-          <span style="font-family:'SF Mono','Courier New',monospace;font-size:20px;font-weight:700;letter-spacing:2px;color:${timerColor};line-height:1;text-shadow:0 0 14px ${timerColor}40;">${pfFmt(s.elapsed)}</span>
-          ${statsRow}
-        </div>
-        ${difBadge ? `<div style="margin-top:7px;">${difBadge}</div>` : ''}
-      </div>
-      ${pctBar}`;
-      return;
-    }
+    const colon = `<span style="font-size:22px;font-weight:700;color:#374151;margin:0 2px;line-height:1;align-self:center;">:</span>`;
 
-    // ── EXPANDIDO (hover) ───────────────────────────────────────────────────────
-    el.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:2147483647;cursor:default;
-    background:linear-gradient(170deg,rgba(10,12,24,.97) 0%,rgba(6,8,18,.99) 100%);
-    backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
-    border:1px solid rgba(99,102,241,.22);border-radius:20px;
-    width:240px;overflow:hidden;
-    box-shadow:0 24px 64px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.04) inset,0 0 50px rgba(99,102,241,.07);
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-    user-select:none;animation:_pfSlideUp .3s cubic-bezier(.16,1,.3,1);`;
+    const timerRow = hh > 0
+      ? `${digitCard(pad(hh),false)}${colon}${digitCard(pad(mm),false)}${colon}${digitCard(pad(ss),false)}`
+      : `${digitCard(pad(mm),false)}${colon}${digitCard(pad(ss),false)}`;
 
-    const headerGrad = isRunning
-      ? 'linear-gradient(90deg,rgba(99,102,241,.12) 0%,rgba(34,211,238,.07) 100%)'
-      : s.paused
-        ? 'linear-gradient(90deg,rgba(245,158,11,.1) 0%,rgba(249,115,22,.07) 100%)'
-        : 'rgba(255,255,255,.025)';
+    const statBox = (num, label, color, bg) => `
+      <div style="flex:1;background:${bg};border:1px solid ${color}22;border-radius:10px;padding:9px 4px;text-align:center;">
+        <div style="font-family:'SF Mono','Courier New',monospace;font-size:22px;font-weight:800;color:${color};line-height:1;">${num}</div>
+        <div style="font-size:7px;color:#6b7280;letter-spacing:1.3px;margin-top:4px;font-weight:700;">${label}</div>
+      </div>`;
 
-    const pctBarFull = total > 0 ? `
-    <div style="margin:0 14px 10px;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;">
-      <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,${pct>=70?'#10b981,#22d3ee':pct>=50?'#f59e0b,#f97316':'#ef4444,#f43f5e'});border-radius:2px;transition:width .8s ease;"></div>
-    </div>` : '';
+    const acColor = total > 0 ? '#10b981' : '#374151';
+    const erColor = total > 0 ? '#f87171' : '#374151';
+    const acBg    = total > 0 ? 'rgba(16,185,129,.08)' : 'rgba(255,255,255,.03)';
+    const erBg    = total > 0 ? 'rgba(239,68,68,.08)'  : 'rgba(255,255,255,.03)';
 
-    const statsGrid = total > 0 ? `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin:0 14px 10px;">
-      <div class="_pf-s" style="background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.15);border-radius:10px;padding:8px 4px;text-align:center;">
-        <div style="font-size:18px;font-weight:800;color:#10b981;font-family:'SF Mono','Courier New',monospace;line-height:1;">${s.acertos}</div>
-        <div style="font-size:7px;color:#334155;letter-spacing:1.2px;margin-top:3px;font-weight:700;">ACERTOS</div>
-      </div>
-      <div class="_pf-s" style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.15);border-radius:10px;padding:8px 4px;text-align:center;">
-        <div style="font-size:18px;font-weight:800;color:#f87171;font-family:'SF Mono','Courier New',monospace;line-height:1;">${s.erros}</div>
-        <div style="font-size:7px;color:#334155;letter-spacing:1.2px;margin-top:3px;font-weight:700;">ERROS</div>
-      </div>
-      <div class="_pf-s" style="background:rgba(${pct>=70?'16,185,129':pct>=50?'245,158,11':'239,68,68'},.07);border:1px solid rgba(${pct>=70?'16,185,129':pct>=50?'245,158,11':'239,68,68'},.18);border-radius:10px;padding:8px 4px;text-align:center;">
-        <div style="font-size:18px;font-weight:800;color:${pctColor};font-family:'SF Mono','Courier New',monospace;line-height:1;">${pct}%</div>
-        <div style="font-size:7px;color:#334155;letter-spacing:1.2px;margin-top:3px;font-weight:700;">TAXA</div>
-      </div>
-    </div>` : '';
+    const filaPin = _pfFila.length > 0
+      ? `<div style="width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;animation:_pfPulse 1.2s ease infinite;"></div>`
+      : '';
 
-    const filaRow = _pfFila.length > 0 ? `
-    <div style="display:flex;align-items:center;gap:7px;margin:0 14px 12px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.18);border-radius:10px;padding:7px 10px;cursor:pointer;" onclick="window._pfOpenFila&&window._pfOpenFila()">
-      <div style="width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 7px #ef4444;animation:_pfPulse 1.2s ease infinite;flex-shrink:0;"></div>
-      <span style="font-size:10px;color:#fca5a5;font-weight:700;flex:1;">${_pfFila.length} revisão${_pfFila.length>1?'ões':''} pendente${_pfFila.length>1?'s':''}</span>
-      <kbd style="font-size:8px;color:#64748b;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:monospace;">Alt+R</kbd>
-    </div>` : '';
+    el.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:2147483647;
+      background:linear-gradient(170deg,rgba(10,12,24,.97) 0%,rgba(6,8,18,.99) 100%);
+      backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+      border:1px solid rgba(255,255,255,.07);border-radius:18px;
+      width:260px;overflow:hidden;cursor:default;
+      box-shadow:0 20px 60px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.03) inset;
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      user-select:none;animation:_pfSlideUp .3s cubic-bezier(.16,1,.3,1);`;
 
     el.innerHTML = `
-    <div style="background:${headerGrad};padding:11px 12px 10px;border-bottom:1px solid rgba(255,255,255,.05);">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:7px;">
-          <div style="width:7px;height:7px;border-radius:50%;background:${stColor};${isRunning?`animation:_pfPulse 2s ease infinite;box-shadow:0 0 8px ${stColor}`:``}"></div>
-          <span style="font-size:8.5px;font-weight:700;color:${statusLabelColor};letter-spacing:1.5px;">${statusLabel}</span>
+      <div style="padding:11px 12px 10px;border-bottom:1px solid rgba(255,255,255,.05);
+        display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:6px;height:6px;border-radius:50%;background:${dotColor};${isRunning?`box-shadow:0 0 7px ${dotColor};animation:_pfPulse 2s ease infinite;`:''}"></div>
+          <span style="font-size:8px;font-weight:800;letter-spacing:1.8px;color:${statusColor};">${statusLabel}</span>
+          ${filaPin}
         </div>
-        <span id="_pfMinBtn" class="_pf-mb" style="width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;font-weight:700;color:#475569;transition:all .15s;line-height:1;">−</span>
+        <span id="_pfMinBtn" class="_pf-mb" style="width:20px;height:20px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:#4b5563;line-height:1;">−</span>
       </div>
-      ${s.discName ? `<div style="font-size:9px;letter-spacing:1.8px;color:#818cf8;text-transform:uppercase;font-weight:700;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.discName}</div>` : ''}
-    </div>
-    <div style="padding:14px 14px 10px;text-align:center;">
-      <div style="font-family:'SF Mono','Courier New',monospace;font-size:32px;font-weight:700;color:${timerColor};letter-spacing:3px;line-height:1;text-shadow:0 0 28px ${timerColor}35;">${pfFmt(s.elapsed)}</div>
-      ${difBadge ? `<div style="margin-top:8px;">${difBadge}</div>` : ''}
-    </div>
-    ${pctBarFull}
-    ${statsGrid}
-    ${filaRow}`;
+      <div style="padding:14px 14px 10px;text-align:center;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
+          ${timerRow}
+        </div>
+        ${s.discName ? `<div style="margin-top:7px;font-size:8px;color:#4f46e5;letter-spacing:2px;font-weight:700;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.discName}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:5px;padding:0 12px 12px;">
+        ${statBox(resolved, 'RESOLVIDAS', '#6366f1', 'rgba(99,102,241,.08)')}
+        ${statBox(s.acertos, 'ACERTOS', acColor, acBg)}
+        ${statBox(s.erros,   'ERROS',   erColor, erBg)}
+      </div>
+      ${s.dificuldade ? `<div style="padding:0 12px 10px;text-align:center;">
+        <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;letter-spacing:.7px;padding:3px 10px;border-radius:20px;background:${difBg};color:${difColor};">${difArrow} ${s.dificuldade.toUpperCase()}</span>
+      </div>` : ''}
+      ${_pfFila.length > 0 ? `<div style="margin:0 12px 10px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.18);border-radius:10px;padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:7px;" onclick="window._pfOpenFila&&window._pfOpenFila()">
+        <div style="width:5px;height:5px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;animation:_pfPulse 1.2s ease infinite;flex-shrink:0;"></div>
+        <span style="font-size:10px;color:#fca5a5;font-weight:700;flex:1;">${_pfFila.length} revisão${_pfFila.length>1?'ões':''} pendente${_pfFila.length>1?'s':''}</span>
+        <kbd style="font-size:8px;color:#64748b;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:monospace;">Alt+R</kbd>
+      </div>` : ''}`;
 
     const minBtn = document.getElementById('_pfMinBtn');
-    if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = true; _pfExpanded = false; pfRenderWidget(); };
+    if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = true; pfRenderWidget(); };
     window._pfOpenFila = () => { if (_pfFila[0]) window.open(_pfFila[0].link, '_self'); };
   }
 
@@ -527,27 +501,16 @@
     pfInjectStyles();
     el = document.createElement('div');
     el.id = '_pfBadge';
-    el.title = 'Painel Fiscal Monitor — passe o mouse para stats | clique para abrir painel | duplo clique para desativar';
+    el.title = 'Painel Fiscal Monitor — clique para abrir painel | duplo clique para desativar';
     if (connected) {
       pfRenderWidget();
     } else {
       el.style.cssText = `position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;
         background:rgba(9,11,20,.88);backdrop-filter:blur(12px);border:1px solid rgba(245,158,11,.3);
-        border-radius:24px;padding:7px 13px;font-family:sans-serif;user-select:none;
+        border-radius:18px;padding:9px 14px;font-family:sans-serif;user-select:none;
         box-shadow:0 4px 24px rgba(0,0,0,.55);color:#f59e0b;font-size:11px;font-weight:700;`;
-      el.innerHTML = '⚠ Painel não encontrado';
+      el.innerHTML = '⚠ Painel não encontrado — clique para abrir';
     }
-    // Hover: expande para mostrar stats
-    el.addEventListener('mouseenter', () => {
-      if (_pfMin) return;
-      _pfExpanded = true;
-      pfRenderWidget();
-    });
-    el.addEventListener('mouseleave', () => {
-      if (_pfMin) return;
-      _pfExpanded = false;
-      pfRenderWidget();
-    });
     el.ondblclick = function () {
       if (confirm('Desativar monitor e remover widget?')) {
         obs.disconnect();
@@ -560,18 +523,16 @@
     };
     el.onclick = function (ev) {
       if (ev.target.id === '_pfMinBtn') return;
-      if (!_pfMin && _pfExpanded) {
-        // Clique enquanto expandido: abre painel
+      if (_pfMin) {
+        _pfMin = false;
+        pfRenderWidget();
+      } else {
         if (!_pfw || _pfw.closed) {
           _pfw = window.open(PANEL_URL, '_pfPanel');
           setTimeout(() => { sendSession(); setTimeout(scanHistory, 1500); }, 1500);
         } else {
           _pfw.focus();
         }
-      } else if (_pfMin) {
-        // Clique no ícone minimizado: restaura
-        _pfMin = false;
-        pfRenderWidget();
       }
     };
     document.body.appendChild(el);
@@ -606,13 +567,14 @@
     if (ev.data.type === 'TEC_STATS_UPDATE') {
       _pfStats = {
         elapsed: ev.data.elapsed || 0,
-        acertos: ev.data.acertos || 0,
-        erros: ev.data.erros || 0,
-        resolved: ev.data.resolved || 0,
+        // Usa o maior entre o que o painel reporta e o contador local (evita zerar ao receber update com cron parado)
+        acertos: Math.max(ev.data.acertos || 0, _pfLocalAce),
+        erros:   Math.max(ev.data.erros   || 0, _pfLocalErr),
+        resolved: Math.max(ev.data.resolved || 0, _pfLocalAce + _pfLocalErr),
         running: !!ev.data.running,
         paused: !!ev.data.paused,
         discName: ev.data.discName || '',
-      dificuldade: ev.data.dificuldade || _pfStats.dificuldade || ''
+        dificuldade: ev.data.dificuldade || _pfStats.dificuldade || ''
       };
       pfRenderWidget();
       // Atualiza badge da extensão via background
