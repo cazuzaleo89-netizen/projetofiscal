@@ -395,17 +395,14 @@
         <span style="font-size:8.5px;font-weight:800;letter-spacing:1.6px;color:${statusLabelColor};">${statusLabel}</span>
         ${filaPin}
       </div>`;
-      const statsRow = total > 0
-        ? `<div style="display:flex;align-items:center;gap:5px;">
-            <span style="font-size:11px;font-weight:800;color:#10b981;font-family:'SF Mono','Courier New',monospace;">${s.acertos}</span>
+      const statsRow = `<div style="display:flex;align-items:center;gap:5px;">
+            <span style="font-size:9px;color:#64748b;font-weight:600;letter-spacing:.5px;margin-right:1px;">✓</span>
+            <span style="font-size:11px;font-weight:800;color:${total>0?'#10b981':'#4b5563'};font-family:'SF Mono','Courier New',monospace;">${s.acertos}</span>
             <span style="font-size:9px;color:#334155;">·</span>
-            <span style="font-size:11px;font-weight:800;color:#f87171;font-family:'SF Mono','Courier New',monospace;">${s.erros}</span>
-            <span style="width:1px;height:10px;background:rgba(255,255,255,.08);margin:0 1px;"></span>
-            <span style="font-size:11px;font-weight:800;color:${pctColor};font-family:'SF Mono','Courier New',monospace;">${pct}%</span>
-          </div>`
-        : s.discName
-          ? `<span style="font-size:9px;color:#818cf8;font-weight:700;letter-spacing:1px;text-transform:uppercase;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.discName}</span>`
-          : `<span style="font-size:9px;color:#475569;font-weight:600;letter-spacing:.5px;">hover para mais</span>`;
+            <span style="font-size:9px;color:#64748b;font-weight:600;letter-spacing:.5px;margin-right:1px;">✗</span>
+            <span style="font-size:11px;font-weight:800;color:${total>0?'#f87171':'#4b5563'};font-family:'SF Mono','Courier New',monospace;">${s.erros}</span>
+            ${total > 0 ? `<span style="width:1px;height:10px;background:rgba(255,255,255,.08);margin:0 1px;"></span><span style="font-size:11px;font-weight:800;color:${pctColor};font-family:'SF Mono','Courier New',monospace;">${pct}%</span>` : ''}
+          </div>`;
       el.innerHTML = `
       <div style="position:relative;padding:9px 14px 9px 15px;">
         ${sideStrip}
