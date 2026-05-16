@@ -135,6 +135,89 @@ function timerSnapshot() {
 }
 
 // ════════════════════════════════════════════════════════
+// MODO POMODORO
+// ════════════════════════════════════════════════════════
+
+const pomodoro = {
+  active: false,
+  state: 'work',       // 'work' | 'break' | 'longBreak'
+  workMins: 25,
+  breakMins: 5,
+  longBreakMins: 15,
+  count: 0,
+  endTime: null,
+  _checkInterval: null,
+};
+
+function pomodoroSnapshot() {
+  const now = Date.now();
+  const remaining = pomodoro.active && pomodoro.endTime
+    ? Math.max(0, Math.round((pomodoro.endTime - now) / 1000))
+    : 0;
+  return {
+    active:    pomodoro.active,
+    state:     pomodoro.state,
+    count:     pomodoro.count,
+    workMins:  pomodoro.workMins,
+    breakMins: pomodoro.breakMins,
+    longBreakMins: pomodoro.longBreakMins,
+    remaining,
+    endTime:   pomodoro.endTime,
+  };
+}
+
+function pomodoroGetDuration() {
+  if (pomodoro.state === 'work')       return pomodoro.workMins * 60 * 1000;
+  if (pomodoro.state === 'longBreak')  return pomodoro.longBreakMins * 60 * 1000;
+  return pomodoro.breakMins * 60 * 1000;
+}
+
+function pomodoroAdvance() {
+  if (pomodoro.state === 'work') {
+    pomodoro.count++;
+    if (pomodoro.count % 4 === 0) {
+      pomodoro.state = 'longBreak';
+      showNotification('☕ Pausa longa!', `${pomodoro.longBreakMins} minutos de descanso. Você completou ${pomodoro.count} pomodoros!`, 'pom-break');
+    } else {
+      pomodoro.state = 'break';
+      showNotification('☕ Pausa curta!', `${pomodoro.breakMins} minutos de descanso.`, 'pom-break');
+    }
+  } else {
+    pomodoro.state = 'work';
+    showNotification('🍅 Hora de trabalhar!', `${pomodoro.workMins} minutos de foco. Pomodoro #${pomodoro.count + 1}.`, 'pom-work');
+  }
+  pomodoro.endTime = Date.now() + pomodoroGetDuration();
+}
+
+function pomodoroStartCheck() {
+  if (pomodoro._checkInterval) clearInterval(pomodoro._checkInterval);
+  pomodoro._checkInterval = setInterval(() => {
+    if (!pomodoro.active || !pomodoro.endTime) return;
+    if (Date.now() >= pomodoro.endTime) {
+      pomodoroAdvance();
+    }
+  }, 5000);
+}
+
+function pomodoroStart() {
+  pomodoro.active  = true;
+  pomodoro.state   = 'work';
+  pomodoro.endTime = Date.now() + pomodoroGetDuration();
+  pomodoroStartCheck();
+}
+
+function pomodoroStop() {
+  pomodoro.active  = false;
+  pomodoro.endTime = null;
+  if (pomodoro._checkInterval) { clearInterval(pomodoro._checkInterval); pomodoro._checkInterval = null; }
+}
+
+function pomodoroSkip() {
+  if (!pomodoro.active) return;
+  pomodoroAdvance();
+}
+
+// ════════════════════════════════════════════════════════
 // ALGORITMO SM-2 (Repetição Espaçada)
 // ════════════════════════════════════════════════════════
 
@@ -311,13 +394,21 @@ async function getSessions(limit = 20) {
 
 // ── Stats por matéria ─────────────────────────────────────────────────────────
 
-async function updateSubjectStats(materia, acertos, erros) {
+async function updateSubjectStats(materia, acertos, erros, assunto) {
   if (!materia) return;
   const { subjectStats = {} } = await getStorage({ subjectStats: {} });
-  if (!subjectStats[materia]) subjectStats[materia] = { materia, acertos: 0, erros: 0, total: 0 };
+  if (!subjectStats[materia]) subjectStats[materia] = { materia, acertos: 0, erros: 0, total: 0, assuntos: {} };
   subjectStats[materia].acertos += acertos;
   subjectStats[materia].erros   += erros;
   subjectStats[materia].total   += acertos + erros;
+  // Salva stats por assunto também
+  if (assunto) {
+    if (!subjectStats[materia].assuntos) subjectStats[materia].assuntos = {};
+    if (!subjectStats[materia].assuntos[assunto]) subjectStats[materia].assuntos[assunto] = { assunto, acertos: 0, erros: 0, total: 0 };
+    subjectStats[materia].assuntos[assunto].acertos += acertos;
+    subjectStats[materia].assuntos[assunto].erros   += erros;
+    subjectStats[materia].assuntos[assunto].total   += acertos + erros;
+  }
   await setStorage({ subjectStats });
 }
 
@@ -329,8 +420,33 @@ async function getSubjectStats() {
 // ── Configurações ─────────────────────────────────────────────────────────────
 
 async function getSettings() {
-  const { settings } = await getStorage({ settings: { dailyGoal: 30, notifications: true, reviewAlgo: 'sm2' } });
+  const { settings } = await getStorage({ settings: { dailyGoal: 30, notifications: true, reviewAlgo: 'sm2', targetRate: 70 } });
   return settings;
+}
+
+// ── Estatísticas semanais ─────────────────────────────────────────────────────
+
+async function getWeekStats() {
+  const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const result = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const key = 'today_' + dateStr;
+    const stored = await getStorage({ [key]: null });
+    const data = stored[key] || { date: dateStr, resolved: 0, acertos: 0, erros: 0 };
+    const taxa = data.resolved > 0 ? Math.round(data.acertos / data.resolved * 100) : 0;
+    result.push({
+      date: dateStr,
+      label: days[d.getDay()],
+      resolved: data.resolved || 0,
+      acertos: data.acertos || 0,
+      erros: data.erros || 0,
+      taxa,
+    });
+  }
+  return result;
 }
 
 // ════════════════════════════════════════════════════════
@@ -433,7 +549,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'QUESTION_CORRECT': {
         const payload = msg.payload || {};
         const today = await updateTodayStats({ acertos: 1 });
-        if (payload.materia) await updateSubjectStats(payload.materia, 1, 0);
+        if (payload.materia) await updateSubjectStats(payload.materia, 1, 0, payload.assunto);
         await checkDailyGoal(today);
         // Atualiza sessão ativa
         if (activeSession) {
@@ -448,7 +564,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'QUESTION_WRONG': {
         const payload = msg.payload || {};
         const today = await updateTodayStats({ erros: 1 });
-        if (payload.materia) await updateSubjectStats(payload.materia, 0, 1);
+        if (payload.materia) await updateSubjectStats(payload.materia, 0, 1, payload.assunto);
         await addToWrongBank(payload);
         // Inicia ciclo Huberman (fase 1 = 5 min)
         if (payload.qid) hubSchedule(payload, 1);
@@ -586,9 +702,40 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         showNotification(msg.title, msg.message, msg.id);
         break;
 
+      // ── Pomodoro ───────────────────────────────────────────────────────────
+      case 'POMODORO_START':
+        pomodoroStart();
+        sendResponse(pomodoroSnapshot());
+        return;
+
+      case 'POMODORO_STOP':
+        pomodoroStop();
+        sendResponse(pomodoroSnapshot());
+        return;
+
+      case 'POMODORO_SKIP':
+        pomodoroSkip();
+        sendResponse(pomodoroSnapshot());
+        return;
+
+      case 'POMODORO_GET':
+        sendResponse(pomodoroSnapshot());
+        return;
+
+      // ── Simulado automático com erros ──────────────────────────────────────
+      case 'GET_SIMULADO': {
+        const allBank = await loadWrongBank();
+        const sorted = Object.values(allBank)
+          .sort((a, b) => (b.errorCount || 0) - (a.errorCount || 0))
+          .slice(0, 10)
+          .map(q => ({ qid: q.qid, url: q.url, materia: q.materia, assunto: q.assunto, desc: q.desc }));
+        sendResponse({ questions: sorted });
+        return;
+      }
+
       // ── Popup: solicita dados completos ────────────────────────────────────
       case 'GET_POPUP_DATA': {
-        const [todayStats, globalStats, wrongBank, sessions, subjectStats, settings, dueReviews] = await Promise.all([
+        const [todayStats, globalStats, wrongBank, sessions, subjectStats, settings, dueReviews, weekStats] = await Promise.all([
           getTodayStats(),
           loadStats(),
           loadWrongBank(),
@@ -596,6 +743,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           getSubjectStats(),
           getSettings(),
           getDueReviews(),
+          getWeekStats(),
         ]);
         sendResponse({
           todayStats,
@@ -611,6 +759,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           activeSession,
           timer: timerSnapshot(),
           hubQueue: hubGetStatus(),
+          weekStats,
+          pomodoro: pomodoroSnapshot(),
         });
         return;
       }
