@@ -869,12 +869,12 @@ async function loadAll() {
     appData = { todayStats: {}, globalStats: {}, sessions: [], subjectStats: [], dueReviews: [], settings: {} };
   }
 
-  renderHoje(appData);
-  renderRevisao(appData);
-  renderHistorico(appData);
-  renderConfig(appData);
-  initPopTimer(appData.timer);
-  await updateStatusBar();
+  try { renderHoje(appData); }     catch(e) { console.error('renderHoje', e); }
+  try { renderRevisao(appData); }  catch(e) { console.error('renderRevisao', e); }
+  try { renderHistorico(appData); }catch(e) { console.error('renderHistorico', e); }
+  try { renderConfig(appData); }   catch(e) { console.error('renderConfig', e); }
+  try { initPopTimer(appData.timer); } catch(e) { console.error('initPopTimer', e); }
+  updateStatusBar(); // dispara async sem bloquear o resto do loadAll
 
   // Badge de revisões (banco + sessão atual)
   const due2    = (appData.dueReviews || []);
@@ -966,29 +966,28 @@ function hubOpen(url) {
 
 async function hubCorrect(qid) {
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_CORRECT', qid }, resolve));
-  await softRefresh();
+  await softRefresh(true);
   document.querySelector('[data-tab="revisao"]').click();
 }
 
 async function hubWrong(qid) {
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_WRONG', qid }, resolve));
-  await softRefresh();
+  await softRefresh(true);
   document.querySelector('[data-tab="revisao"]').click();
 }
 
 async function hubDismiss(qid) {
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_DISMISS', qid }, resolve));
-  await softRefresh();
+  await softRefresh(true);
 }
 
 async function hubAddCustom() {
   const mins = parseInt(document.getElementById('hub-custom-mins').value) || 15;
-  // Pega o primeiro item da fila para usar como referência (ou a última questão errada)
   const data = appData || {};
   const hub  = (data.hubQueue || [])[0];
   if (!hub) { alert('Nenhuma questão Huberman na fila para agendar.'); return; }
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_CUSTOM', qid: hub.qid, mins }, resolve));
-  await softRefresh();
+  await softRefresh(true);
 }
 
 function resetStats() {
@@ -1002,75 +1001,78 @@ function resetStats() {
 }
 
 // ── Atualização em tempo real ────────────────────────────────────────────────
-async function softRefresh() {
-  let fresh;
+let _refreshBusy = false; // mutex: evita chamadas concorrentes do intervalo
+
+// force=true: chamadas de ações do usuário sempre executam (ignora mutex)
+async function softRefresh(force = false) {
+  if (_refreshBusy && !force) return;
+  if (!force) _refreshBusy = true;
   try {
-    fresh = await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('timeout')), 1500);
-      chrome.runtime.sendMessage({ type: 'GET_POPUP_DATA' }, r => {
-        clearTimeout(t);
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(r || {});
+    let fresh;
+    try {
+      fresh = await new Promise((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error('timeout')), 1500);
+        chrome.runtime.sendMessage({ type: 'GET_POPUP_DATA' }, r => {
+          clearTimeout(t);
+          if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+          else resolve(r || {});
+        });
       });
-    });
-  } catch {
-    updateStatusBar(); // garante que o status bar sempre atualiza
-    return;
+    } catch { return; }
+
+    appData = fresh;
+
+    // Atualiza stats de hoje sem re-renderizar tudo
+    const today = fresh.todayStats || {};
+    const resolved = today.resolved || 0;
+    const acertos  = today.acertos  || 0;
+    const erros    = today.erros    || 0;
+    const goal     = (fresh.settings || {}).dailyGoal || 30;
+    const goalPct  = Math.min(100, Math.round(resolved / goal * 100));
+    const taxa     = pct(acertos, resolved);
+
+    setEl('d-resolved', fmt(resolved));
+    setEl('d-acertos',  fmt(acertos));
+    setEl('d-erros',    fmt(erros));
+    setEl('goal-progress', `${resolved} / ${goal}`);
+    setEl('ring-pct', resolved > 0 ? taxa + '%' : '—');
+    setEl('ring-sub', resolved > 0
+      ? `${acertos} acertos · ${erros} erros hoje`
+      : 'Resolva questões no TEC para começar a rastrear.');
+
+    const fill = document.getElementById('goal-fill');
+    if (fill) fill.style.width = goalPct + '%';
+
+    const arc = document.getElementById('ring-arc');
+    if (arc) {
+      arc.style.strokeDashoffset = 138.2 - (138.2 * taxa / 100);
+      arc.style.stroke = accColor(taxa);
+    }
+    const ringPct = document.getElementById('ring-pct');
+    if (ringPct) ringPct.style.color = accColor(taxa);
+
+    // Atualiza streak
+    const global = fresh.globalStats || {};
+    setEl('streak-badge', `🔥 ${global.streak || 0}d`);
+
+    // Conta revisões (Huberman + banco + sessão)
+    const due = fresh.dueReviews || [];
+    const hub = fresh.hubQueue   || [];
+    const session = fresh.activeSession;
+    const dueQids = new Set(due.map(q => q.qid));
+    const sessionErr = session && session.questions
+      ? session.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids.has(q.qid))
+      : [];
+    const totalRev = hub.length + due.length + sessionErr.length;
+
+    const revTab = document.querySelector('[data-tab="revisao"]');
+    if (revTab) revTab.textContent = totalRev > 0 ? `REVISÃO (${totalRev})` : 'REVISÃO';
+
+    // Atualiza só os contadores Huberman (sem reconstruir DOM)
+    updateHubCountdowns(fresh.hubQueue || []);
+  } finally {
+    _refreshBusy = false;
   }
-
-  appData = fresh;
-
-  // Atualiza stats de hoje sem re-renderizar tudo
-  const today = fresh.todayStats || {};
-  const resolved = today.resolved || 0;
-  const acertos  = today.acertos  || 0;
-  const erros    = today.erros    || 0;
-  const goal     = (fresh.settings || {}).dailyGoal || 30;
-  const goalPct  = Math.min(100, Math.round(resolved / goal * 100));
-  const taxa     = pct(acertos, resolved);
-
-  setEl('d-resolved', fmt(resolved));
-  setEl('d-acertos',  fmt(acertos));
-  setEl('d-erros',    fmt(erros));
-  setEl('goal-progress', `${resolved} / ${goal}`);
-  setEl('ring-pct', resolved > 0 ? taxa + '%' : '—');
-  setEl('ring-sub', resolved > 0
-    ? `${acertos} acertos · ${erros} erros hoje`
-    : 'Resolva questões no TEC para começar a rastrear.');
-
-  const fill = document.getElementById('goal-fill');
-  if (fill) fill.style.width = goalPct + '%';
-
-  const arc = document.getElementById('ring-arc');
-  if (arc) {
-    arc.style.strokeDashoffset = 138.2 - (138.2 * taxa / 100);
-    arc.style.stroke = accColor(taxa);
-  }
-  const ringPct = document.getElementById('ring-pct');
-  if (ringPct) ringPct.style.color = accColor(taxa);
-
-  // Atualiza streak
-  const global = fresh.globalStats || {};
-  setEl('streak-badge', `🔥 ${global.streak || 0}d`);
-
-  // Conta revisões (Huberman + banco + sessão)
-  const due = fresh.dueReviews || [];
-  const hub = fresh.hubQueue   || [];
-  const session = fresh.activeSession;
-  const dueQids = new Set(due.map(q => q.qid));
-  const sessionErr = session && session.questions
-    ? session.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids.has(q.qid))
-    : [];
-  const totalRev = hub.length + due.length + sessionErr.length;
-
-  const revTab = document.querySelector('[data-tab="revisao"]');
-  if (revTab) revTab.textContent = totalRev > 0 ? `REVISÃO (${totalRev})` : 'REVISÃO';
-
-  // Atualiza só os contadores Huberman (sem reconstruir DOM)
-  updateHubCountdowns(fresh.hubQueue || []);
-
-  // Status bar
-  updateStatusBar();
 }
 
 // Atualiza apenas os textos de contagem regressiva já existentes no DOM
@@ -1099,9 +1101,16 @@ function setEl(id, txt) {
 // ── Inicializa ───────────────────────────────────────────────────────────────
 loadAll();
 
-// Atualiza a cada 3 segundos enquanto o popup estiver aberto
+// softRefresh: atualiza dados/stats (rápido, mutex garante 1 instância por vez)
 const _refreshInterval = setInterval(softRefresh, 3000);
-window.addEventListener('unload', () => clearInterval(_refreshInterval));
+
+// updateStatusBar: usa chrome.tabs.query (mais lento, intervalo separado e maior)
+const _statusInterval  = setInterval(updateStatusBar, 10000);
+
+window.addEventListener('unload', () => {
+  clearInterval(_refreshInterval);
+  clearInterval(_statusInterval);
+});
 </script>
 </body>
 </html>
