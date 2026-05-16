@@ -16,6 +16,87 @@ let filaCount   = 0;
 let activeSession = null;  // sessão corrente (não persistida ainda)
 
 // ════════════════════════════════════════════════════════
+// MÉTODO HUBERMAN — Fila de revisão em curto prazo
+// Protocolo: 5min → 9min → 11min → custom → SM-2 longo prazo
+// ════════════════════════════════════════════════════════
+
+const HUB_PHASES = [5, 9, 11];   // minutos por fase
+const hubQueue   = [];            // [{qid,url,materia,assunto,desc,phase,reviewAt,addedAt}]
+
+function hubAlarmName(qid) { return 'hub-' + qid; }
+
+function hubSchedule(q, phase, customMins) {
+  const mins = customMins != null ? customMins : HUB_PHASES[phase - 1];
+  if (mins == null) return false;  // todas as fases concluídas
+
+  // Remove entrada anterior deste qid
+  const idx = hubQueue.findIndex(h => h.qid === q.qid);
+  if (idx >= 0) hubQueue.splice(idx, 1);
+
+  // Cancela alarme anterior
+  chrome.alarms.clear(hubAlarmName(q.qid));
+
+  const reviewAt = Date.now() + mins * 60 * 1000;
+  hubQueue.push({
+    qid:     q.qid,
+    url:     q.url     || '',
+    materia: q.materia || '',
+    assunto: q.assunto || '',
+    desc:    q.desc    || 'Questão #' + q.qid,
+    phase,
+    customMins: customMins || null,
+    reviewAt,
+    addedAt: Date.now(),
+    mins,
+  });
+
+  chrome.alarms.create(hubAlarmName(q.qid), { delayInMinutes: mins });
+  return true;
+}
+
+function hubGetStatus() {
+  const now = Date.now();
+  return hubQueue.map(h => ({
+    ...h,
+    isDue:     now >= h.reviewAt,
+    remaining: Math.max(0, Math.round((h.reviewAt - now) / 1000)), // segundos
+    phaseName: h.customMins != null ? `${h.customMins}min (custom)` : `${HUB_PHASES[h.phase - 1]}min`,
+  })).sort((a, b) => a.reviewAt - b.reviewAt);
+}
+
+function hubAdvancePhase(qid) {
+  const idx = hubQueue.findIndex(h => h.qid === qid);
+  if (idx < 0) return;
+  const item = hubQueue[idx];
+  hubQueue.splice(idx, 1);
+  chrome.alarms.clear(hubAlarmName(qid));
+
+  const nextPhase = item.phase + 1;
+  if (nextPhase <= HUB_PHASES.length) {
+    hubSchedule(item, nextPhase);
+    return 'next';
+  }
+  return 'done';  // concluiu todas as fases → fica no SM-2
+}
+
+function hubResetPhase(qid) {
+  const idx = hubQueue.findIndex(h => h.qid === qid);
+  if (idx < 0) return;
+  const item = hubQueue[idx];
+  hubQueue.splice(idx, 1);
+  chrome.alarms.clear(hubAlarmName(qid));
+  hubSchedule(item, 1);  // reinicia do zero
+}
+
+async function hubNotifyTec(item) {
+  const tab = tecTabId ? { id: tecTabId } : await findTecTab();
+  if (!tab) return;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: 'HUBERMAN_DUE', item });
+  } catch { /* tab pode não ter content script */ }
+}
+
+// ════════════════════════════════════════════════════════
 // CRONÔMETRO (gerenciado no background para persistir entre navegações)
 // ════════════════════════════════════════════════════════
 
@@ -369,9 +450,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const today = await updateTodayStats({ erros: 1 });
         if (payload.materia) await updateSubjectStats(payload.materia, 0, 1);
         await addToWrongBank(payload);
-        // Badge = total de revisões devidas (nextReview <= hoje inclui a que acabou de errar)
+        // Inicia ciclo Huberman (fase 1 = 5 min)
+        if (payload.qid) hubSchedule(payload, 1);
+        // Badge = total de revisões devidas
         const due = await getDueReviews();
-        updateBadge(due.length);
+        updateBadge(due.length + hubQueue.length);
         if (activeSession) {
           activeSession.erros = (activeSession.erros || 0) + 1;
           activeSession.questions = activeSession.questions || [];
@@ -415,6 +498,52 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           activeSession = null;
         }
         break;
+      }
+
+      // ── Huberman: acertou → avança fase ───────────────────────────────────
+      case 'HUBERMAN_CORRECT': {
+        const result = hubAdvancePhase(msg.qid);
+        if (result === 'done') {
+          showNotification('🧠 Revisão Huberman concluída!',
+            'Questão dominada nas 3 fases. Agora no SM-2 de longo prazo.', 'hub-done-' + msg.qid);
+        }
+        const due2 = await getDueReviews();
+        updateBadge(due2.length + hubQueue.length);
+        sendResponse({ hub: hubGetStatus() });
+        return;
+      }
+
+      // ── Huberman: errou → reinicia fase 1 ─────────────────────────────────
+      case 'HUBERMAN_WRONG': {
+        hubResetPhase(msg.qid);
+        const due3 = await getDueReviews();
+        updateBadge(due3.length + hubQueue.length);
+        sendResponse({ hub: hubGetStatus() });
+        return;
+      }
+
+      // ── Huberman: intervalo customizado ───────────────────────────────────
+      case 'HUBERMAN_CUSTOM': {
+        const idx = hubQueue.findIndex(h => h.qid === msg.qid);
+        const base = idx >= 0 ? hubQueue[idx] : { qid: msg.qid, url: msg.url || '', materia: '', assunto: '', desc: 'Questão #' + msg.qid };
+        if (idx >= 0) hubQueue.splice(idx, 1);
+        const mins = Math.max(1, parseInt(msg.mins) || 5);
+        hubSchedule(base, (base.phase || 1), mins);
+        sendResponse({ hub: hubGetStatus() });
+        return;
+      }
+
+      // ── Huberman: retorna fila atual ───────────────────────────────────────
+      case 'HUBERMAN_GET':
+        sendResponse({ hub: hubGetStatus() });
+        return;
+
+      // ── Huberman: descarta item da fila ───────────────────────────────────
+      case 'HUBERMAN_DISMISS': {
+        const di = hubQueue.findIndex(h => h.qid === msg.qid);
+        if (di >= 0) { hubQueue.splice(di, 1); chrome.alarms.clear(hubAlarmName(msg.qid)); }
+        sendResponse({ hub: hubGetStatus() });
+        return;
       }
 
       // ── Cronômetro: controles ──────────────────────────────────────────────
@@ -481,6 +610,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           tecTabId,
           activeSession,
           timer: timerSnapshot(),
+          hubQueue: hubGetStatus(),
         });
         return;
       }
@@ -563,9 +693,35 @@ chrome.runtime.onInstalled.addListener(async () => {
 // ════════════════════════════════════════════════════════
 
 chrome.alarms.onAlarm.addListener(async alarm => {
+
+  // ── Huberman: alarme de revisão disparou ──────────────────────────────────
+  if (alarm.name.startsWith('hub-')) {
+    const qid  = alarm.name.slice(4);
+    const item = hubQueue.find(h => h.qid === qid);
+    if (!item) return;
+
+    const settings = await getSettings();
+    if (settings.notifications !== false) {
+      const label = item.customMins != null
+        ? `Intervalo custom ${item.customMins}min`
+        : `Fase ${item.phase} de 3 · ${HUB_PHASES[item.phase - 1]}min`;
+      showNotification(
+        `🧠 Revisão Huberman — ${label}`,
+        item.desc || 'Questão #' + item.qid,
+        'hub-due-' + qid
+      );
+    }
+
+    const due = await getDueReviews();
+    updateBadge(due.length + hubQueue.length);
+    await hubNotifyTec(item);
+    return;
+  }
+
+  // ── Alarme diário SM-2 ────────────────────────────────────────────────────
   if (alarm.name !== 'daily-review-check') return;
   const due = await getDueReviews();
-  updateBadge(due.length);
+  updateBadge(due.length + hubQueue.length);
   if (due.length > 0) {
     const settings = await getSettings();
     if (settings.notifications !== false) {

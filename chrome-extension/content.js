@@ -801,7 +801,73 @@
       sendResponse({ questions: S.questions, totalQ: S.totalQ, currentQ: S.currentQ, caderno: S.caderno });
       return true;
     }
+    if (msg.type === 'HUBERMAN_DUE' && msg.item) showHubermanBanner(msg.item);
   });
+
+  // ════════════════════════════════════════════════════════
+  // BANNER HUBERMAN (aparece quando uma fase está pronta)
+  // ════════════════════════════════════════════════════════
+
+  function showHubermanBanner(item) {
+    const prev = document.getElementById('_pfHubBanner');
+    if (prev) prev.remove();
+
+    const phaseLabel = item.customMins != null
+      ? `Intervalo custom ${item.customMins}min`
+      : `Fase ${item.phase} de 3 · ${[5, 9, 11][item.phase - 1]}min`;
+
+    const phases = [1, 2, 3].map(p => {
+      if (p < item.phase)  return `<span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;"></span>`;
+      if (p === item.phase) return `<span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;box-shadow:0 0 7px #f59e0b;"></span>`;
+      return `<span style="width:8px;height:8px;border-radius:50%;background:#374151;display:inline-block;"></span>`;
+    }).join('');
+
+    const bn = document.createElement('div');
+    bn.id = '_pfHubBanner';
+    bn.style.cssText = `
+      position:fixed;top:14px;left:50%;transform:translateX(-50%);
+      background:linear-gradient(135deg,#1e1340,#0f1220);
+      border:1px solid rgba(139,92,246,.4);
+      border-radius:14px;padding:13px 16px;
+      box-shadow:0 8px 32px rgba(139,92,246,.35),0 0 0 1px rgba(139,92,246,.15) inset;
+      font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+      z-index:2147483647;min-width:300px;max-width:380px;
+      animation:_pfSlide2 .3s cubic-bezier(.16,1,.3,1);
+    `;
+    bn.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
+        <span style="font-size:18px;">🧠</span>
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:800;color:#a78bfa;letter-spacing:.6px;">REVISÃO HUBERMAN · ${phaseLabel.toUpperCase()}</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:4px;">${phases}</div>
+        </div>
+        <button id="_pfHubClose" style="background:none;border:none;color:#64748b;font-size:16px;cursor:pointer;padding:2px 6px;">✕</button>
+      </div>
+      <div style="font-size:12px;color:#c4b5fd;font-weight:600;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        ${item.materia ? `<span style="color:#7c3aed;font-weight:700;">${item.materia}</span> — ` : ''}${(item.desc || 'Questão #' + item.qid).slice(0, 60)}
+      </div>
+      <div style="display:flex;gap:7px;">
+        <button id="_pfHubAbrir" style="flex:2;padding:8px;background:#6d28d9;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">📖 Abrir Questão</button>
+        <button id="_pfHubAcertei" style="flex:1;padding:8px;background:rgba(34,197,94,.15);border:1px solid #22c55e55;border-radius:8px;color:#22c55e;font-size:11px;font-weight:700;cursor:pointer;">✓ Acertei</button>
+        <button id="_pfHubErrei" style="flex:1;padding:8px;background:rgba(239,68,68,.12);border:1px solid #ef444455;border-radius:8px;color:#ef4444;font-size:11px;font-weight:700;cursor:pointer;">✕ Errei</button>
+      </div>`;
+
+    document.body.appendChild(bn);
+
+    // Auto-remove após 60s se não interagir
+    const autoRemove = setTimeout(() => { if (bn.parentElement) bn.remove(); }, 60000);
+
+    document.getElementById('_pfHubClose').onclick  = () => { clearTimeout(autoRemove); bn.remove(); };
+    document.getElementById('_pfHubAbrir').onclick  = () => { clearTimeout(autoRemove); bn.remove(); if (item.url) window.open(item.url, '_self'); };
+    document.getElementById('_pfHubAcertei').onclick = () => {
+      clearTimeout(autoRemove); bn.remove();
+      toBg('HUBERMAN_CORRECT', { qid: item.qid });
+    };
+    document.getElementById('_pfHubErrei').onclick  = () => {
+      clearTimeout(autoRemove); bn.remove();
+      toBg('HUBERMAN_WRONG', { qid: item.qid });
+    };
+  }
 
   // Alt+R → próxima da fila
   window.addEventListener('keydown', ev => {

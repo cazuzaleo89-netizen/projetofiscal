@@ -117,6 +117,74 @@ body{
 .subj-pct{font-size:10px;color:#6366f1;font-weight:700;width:28px;text-align:right;flex-shrink:0;}
 
 /* ── SEÇÃO: Revisão ── */
+/* ── HUBERMAN CARDS ── */
+.hub-section{
+  background:linear-gradient(135deg,rgba(109,40,217,.08),rgba(15,18,32,.6));
+  border:1px solid rgba(139,92,246,.2);
+  border-radius:11px;padding:11px;margin-bottom:11px;
+}
+.hub-title{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;font-weight:800;color:#a78bfa;letter-spacing:.8px;margin-bottom:9px;
+}
+.hub-card{
+  background:rgba(109,40,217,.06);border:1px solid rgba(109,40,217,.15);
+  border-radius:9px;padding:10px;margin-bottom:7px;
+}
+.hub-card:last-child{margin-bottom:0;}
+.hub-card.due-now{
+  border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06);
+  animation:hubPulse 2s ease infinite;
+}
+@keyframes hubPulse{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.0)}50%{box-shadow:0 0 0 4px rgba(245,158,11,.12)}}
+.hub-phases{display:flex;align-items:center;gap:5px;margin-bottom:7px;}
+.hub-dot{
+  width:8px;height:8px;border-radius:50%;background:#374151;
+  flex-shrink:0;transition:all .2s;
+}
+.hub-dot.done{background:#22c55e;}
+.hub-dot.active{width:10px;height:10px;background:#f59e0b;box-shadow:0 0 6px #f59e0b;}
+.hub-dot.custom{width:10px;height:10px;background:#a78bfa;box-shadow:0 0 6px #a78bfa;}
+.hub-phase-lbl{font-size:9px;color:#64748b;font-weight:700;margin-left:3px;}
+.hub-desc{font-size:11px;color:#c4b5fd;font-weight:600;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hub-mat{font-size:9px;color:#7c3aed;font-weight:700;letter-spacing:.3px;margin-bottom:5px;}
+.hub-countdown{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:10px;font-weight:700;letter-spacing:.3px;
+  padding:2px 8px;border-radius:20px;margin-bottom:8px;
+}
+.hub-countdown.waiting{background:rgba(99,102,241,.1);color:#818cf8;}
+.hub-countdown.ready{background:rgba(245,158,11,.15);color:#f59e0b;}
+.hub-btns{display:flex;gap:5px;}
+.hub-btn{
+  flex:1;padding:6px 3px;border-radius:7px;font-size:10px;font-weight:700;
+  cursor:pointer;border:1px solid transparent;transition:all .15s;text-align:center;
+}
+.hub-btn.open{background:#6d28d9;color:#fff;border-color:#7c3aed;}
+.hub-btn.open:hover{background:#5b21b6;}
+.hub-btn.ok{background:rgba(34,197,94,.12);color:#22c55e;border-color:#22c55e44;}
+.hub-btn.ok:hover{background:rgba(34,197,94,.22);}
+.hub-btn.fail{background:rgba(239,68,68,.1);color:#ef4444;border-color:#ef444433;}
+.hub-btn.fail:hover{background:rgba(239,68,68,.2);}
+.hub-btn.dis{background:rgba(255,255,255,.04);color:#475569;border-color:rgba(255,255,255,.07);}
+.hub-btn.dis:hover{color:#64748b;}
+.hub-custom{
+  display:flex;gap:5px;align-items:center;margin-top:8px;padding-top:8px;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.hub-custom-lbl{font-size:10px;color:#64748b;white-space:nowrap;}
+.hub-custom-inp{
+  flex:1;background:#20243a;border:1px solid rgba(255,255,255,.09);
+  border-radius:6px;padding:4px 8px;color:#e2e8f0;font-size:12px;outline:none;
+  width:60px;
+}
+.hub-custom-btn{
+  padding:4px 10px;background:#6d28d9;border:none;border-radius:6px;
+  color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
+}
+.hub-custom-btn:hover{background:#5b21b6;}
+
+/* ── REVISÃO ── */
 .rev-header{
   display:flex;align-items:center;justify-content:space-between;
   margin-bottom:10px;
@@ -587,6 +655,69 @@ function qCardHtml(q, sessionMode) {
   </div>`;
 }
 
+// ── Huberman helpers ─────────────────────────────────────────────────────────
+function fmtRemaining(secs) {
+  if (secs <= 0) return 'REVISAR AGORA';
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return m > 0 ? `${m}m ${String(s).padStart(2,'0')}s` : `${s}s`;
+}
+
+function renderHubSection(hubItems) {
+  if (!hubItems || !hubItems.length) return '';
+
+  const cards = hubItems.map(h => {
+    const isDue  = h.isDue;
+    const remaining = h.remaining || 0;
+    const isCustom  = h.customMins != null;
+
+    // Indicadores de fase
+    const dots = [1, 2, 3].map(p => {
+      let cls = 'hub-dot';
+      if (p < h.phase)    cls += ' done';
+      else if (p === h.phase) cls += isCustom ? ' custom' : ' active';
+      return `<div class="${cls}"></div>`;
+    }).join('');
+
+    const phaseLabel = isCustom
+      ? `Custom ${h.customMins}min`
+      : `Fase ${h.phase} de 3 · ${[5,9,11][h.phase-1]}min`;
+
+    const countdown = isDue
+      ? `<span class="hub-countdown ready">⚡ REVISAR AGORA</span>`
+      : `<span class="hub-countdown waiting">⏱ ${fmtRemaining(remaining)}</span>`;
+
+    const url = (h.url || '').replace(/'/g, "\\'");
+    const qid = h.qid;
+
+    return `<div class="hub-card ${isDue ? 'due-now' : ''}">
+      <div class="hub-phases">
+        ${dots}
+        <span class="hub-phase-lbl">${phaseLabel}</span>
+      </div>
+      ${h.materia ? `<div class="hub-mat">${h.materia}</div>` : ''}
+      <div class="hub-desc" title="${h.desc || ''}">${(h.desc || 'Questão #' + qid).slice(0,52)}</div>
+      ${countdown}
+      <div class="hub-btns">
+        <button class="hub-btn open" onclick="hubOpen('${url}')">📖 Abrir</button>
+        <button class="hub-btn ok"   onclick="hubCorrect('${qid}')">✓ Acertei</button>
+        <button class="hub-btn fail" onclick="hubWrong('${qid}')">✕ Errei</button>
+        <button class="hub-btn dis"  onclick="hubDismiss('${qid}')">–</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="hub-section">
+    <div class="hub-title">🧠 MÉTODO HUBERMAN — REVISÃO ATIVA</div>
+    ${cards}
+    <div class="hub-custom">
+      <span class="hub-custom-lbl">Agendar em:</span>
+      <input class="hub-custom-inp" type="number" id="hub-custom-mins" min="1" max="120" placeholder="min" value="15">
+      <button class="hub-custom-btn" onclick="hubAddCustom()">+ Agendar</button>
+    </div>
+  </div>`;
+}
+
 function renderRevisao(data) {
   const due     = data.dueReviews || [];
   const session = data.activeSession;
@@ -597,7 +728,8 @@ function renderRevisao(data) {
     ? session.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids.has(q.qid))
     : [];
 
-  const total = due.length + sessionErrors.length;
+  const hubItems = data.hubQueue || [];
+  const total = hubItems.length + due.length + sessionErrors.length;
   document.getElementById('due-count').textContent = total;
 
   if (total === 0) {
@@ -611,16 +743,19 @@ function renderRevisao(data) {
 
   let html = '';
 
-  // Seção "Esta Sessão" — erros recentes ainda não no banco
+  // 1. Seção Huberman (prioridade máxima)
+  html += renderHubSection(hubItems);
+
+  // 2. Seção "Esta Sessão" — erros recentes
   if (sessionErrors.length > 0) {
     html += `<div style="font-size:10px;color:#ef4444;font-weight:700;letter-spacing:.8px;margin-bottom:7px;">🔴 DESTA SESSÃO</div>`;
     html += sessionErrors.map(q => qCardHtml(q, true)).join('');
   }
 
-  // Seção erros do banco de revisão
+  // 3. Seção SM-2 agendadas
   if (due.length > 0) {
-    if (sessionErrors.length > 0) {
-      html += `<div style="font-size:10px;color:#475569;font-weight:700;letter-spacing:.8px;margin:10px 0 7px;">📅 AGENDADAS</div>`;
+    if (hubItems.length > 0 || sessionErrors.length > 0) {
+      html += `<div style="font-size:10px;color:#475569;font-weight:700;letter-spacing:.8px;margin:10px 0 7px;">📅 AGENDADAS (SM-2)</div>`;
     }
     html += due.map(q => qCardHtml(q, false)).join('');
   }
@@ -808,6 +943,40 @@ async function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
+// ── Ações Huberman ────────────────────────────────────────────────────────────
+function hubOpen(url) {
+  if (!url) return;
+  chrome.tabs.create({ url });
+  window.close();
+}
+
+async function hubCorrect(qid) {
+  await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_CORRECT', qid }, resolve));
+  await softRefresh();
+  document.querySelector('[data-tab="revisao"]').click();
+}
+
+async function hubWrong(qid) {
+  await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_WRONG', qid }, resolve));
+  await softRefresh();
+  document.querySelector('[data-tab="revisao"]').click();
+}
+
+async function hubDismiss(qid) {
+  await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_DISMISS', qid }, resolve));
+  await softRefresh();
+}
+
+async function hubAddCustom() {
+  const mins = parseInt(document.getElementById('hub-custom-mins').value) || 15;
+  // Pega o primeiro item da fila para usar como referência (ou a última questão errada)
+  const data = appData || {};
+  const hub  = (data.hubQueue || [])[0];
+  if (!hub) { alert('Nenhuma questão Huberman na fila para agendar.'); return; }
+  await new Promise(resolve => chrome.runtime.sendMessage({ type: 'HUBERMAN_CUSTOM', qid: hub.qid, mins }, resolve));
+  await softRefresh();
+}
+
 function resetStats() {
   if (!confirm('⚠ Isso apagará TODOS os dados locais (sessões, erros, stats). Tem certeza?')) return;
   chrome.storage.local.clear(() => {
@@ -867,14 +1036,15 @@ async function softRefresh() {
   const global = fresh.globalStats || {};
   setEl('streak-badge', `🔥 ${global.streak || 0}d`);
 
-  // Conta revisões (banco + sessão)
+  // Conta revisões (Huberman + banco + sessão)
   const due = fresh.dueReviews || [];
+  const hub = fresh.hubQueue   || [];
   const session = fresh.activeSession;
   const dueQids = new Set(due.map(q => q.qid));
   const sessionErr = session && session.questions
     ? session.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids.has(q.qid))
     : [];
-  const totalRev = due.length + sessionErr.length;
+  const totalRev = hub.length + due.length + sessionErr.length;
 
   const revTab = document.querySelector('[data-tab="revisao"]');
   if (revTab) revTab.textContent = totalRev > 0 ? `REVISÃO (${totalRev})` : 'REVISÃO';
