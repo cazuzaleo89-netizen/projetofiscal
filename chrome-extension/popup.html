@@ -535,8 +535,13 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 // ── Utilitários ─────────────────────────────────────────────────────────────
 async function findTab(origin) {
-  const all = await chrome.tabs.query({});
-  return all.find(t => t.url && t.url.includes(origin)) || null;
+  try {
+    const all = await Promise.race([
+      chrome.tabs.query({}),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1000)),
+    ]);
+    return all.find(t => t.url && t.url.includes(origin)) || null;
+  } catch { return null; }
 }
 
 async function pingContent(tabId) {
@@ -818,27 +823,34 @@ function toggleSetting(id) {
 async function updateStatusBar() {
   const dot = document.getElementById('s-dot');
   const txt = document.getElementById('s-txt');
-  let tecTab = null;
-  let pingData = null;
+  if (!dot || !txt) return;
 
-  try { tecTab = await findTab(TEC_ORIGIN); } catch { /* */ }
-  if (tecTab) {
-    try { pingData = await pingContent(tecTab.id); } catch { /* */ }
-  }
+  try {
+    let tecTab = null;
+    let pingData = null;
 
-  if (!tecTab) {
+    tecTab = await findTab(TEC_ORIGIN); // already has internal try/catch + timeout
+    if (tecTab) {
+      try { pingData = await pingContent(tecTab.id); } catch { /* */ }
+    }
+
+    if (!tecTab) {
+      dot.className = 's-dot warn';
+      txt.innerHTML = 'TEC não está aberto — <a href="#" onclick="openTec();return false;" style="color:#f59e0b;">abrir</a>';
+    } else if (!pingData) {
+      dot.className = 's-dot warn';
+      txt.innerHTML = '<strong>TEC detectado</strong> — recarregue a aba do TEC';
+    } else {
+      dot.className = 's-dot on';
+      const { localAce = 0, localErr = 0 } = pingData.stats || {};
+      const total = localAce + localErr;
+      txt.innerHTML = total > 0
+        ? `<strong>⚡ Ativo</strong> · ✓${localAce} ✕${localErr}`
+        : `<strong>⚡ Monitor ativo</strong> — abra um caderno`;
+    }
+  } catch {
     dot.className = 's-dot warn';
-    txt.innerHTML = 'TEC não está aberto';
-  } else if (!pingData) {
-    dot.className = 's-dot warn';
-    txt.innerHTML = '<strong>TEC detectado</strong> — recarregue a aba';
-  } else {
-    dot.className = 's-dot on';
-    const { localAce = 0, localErr = 0, caderno = '' } = pingData.stats || {};
-    const total = localAce + localErr;
-    txt.innerHTML = total > 0
-      ? `<strong>⚡ Ativo</strong> · ✓${localAce} ✕${localErr}`
-      : `<strong>⚡ Monitor ativo</strong>`;
+    txt.textContent = 'Erro ao verificar conexão';
   }
 }
 
@@ -861,8 +873,8 @@ async function loadAll() {
   renderRevisao(appData);
   renderHistorico(appData);
   renderConfig(appData);
-  updateStatusBar();
   initPopTimer(appData.timer);
+  await updateStatusBar();
 
   // Badge de revisões (banco + sessão atual)
   const due2    = (appData.dueReviews || []);
@@ -1001,7 +1013,10 @@ async function softRefresh() {
         else resolve(r || {});
       });
     });
-  } catch { return; }
+  } catch {
+    updateStatusBar(); // garante que o status bar sempre atualiza
+    return;
+  }
 
   appData = fresh;
 

@@ -147,12 +147,26 @@
     const tx = document.body.innerText || '';
     let m = tx.match(/(\d+)\s+Acertos?\s+e\s+(\d+)\s+Erros?/i);
     if (!m) m = tx.match(/Acertos?[:\s]+(\d+)[^\d]+Erros?[:\s]+(\d+)/i);
+    if (!m) m = tx.match(/(\d+)\s+certos?\s+e\s+(\d+)\s+errados?/i);
+    if (!m) {
+      // Tenta pegar contadores separados em elementos de stats do TEC
+      const els = document.querySelectorAll('[class*="acerto"],[class*="erro"],[class*="correct"],[class*="wrong"],[class*="stat"]');
+      let a = null, e = null;
+      els.forEach(el => {
+        const t = el.textContent || '';
+        if (/acerto/i.test(t)) { const n = t.match(/\d+/); if (n) a = parseInt(n[0]); }
+        if (/erro/i.test(t))   { const n = t.match(/\d+/); if (n) e = parseInt(n[0]); }
+      });
+      if (a !== null && e !== null) return { a, e };
+    }
     return m ? { a: parseInt(m[1]), e: parseInt(m[2]) } : null;
   }
 
   function parsePosition() {
     const tx = document.body.innerText || '';
-    const m = tx.match(/Quest[aã]o\s+(\d+)\s+de\s+(\d+)/i);
+    let m = tx.match(/Quest[aã]o\s+(\d+)\s+de\s+(\d+)/i);
+    if (!m) m = tx.match(/(\d+)\s*\/\s*(\d+)\s*quest/i);
+    if (!m) m = tx.match(/(\d+)\s+de\s+(\d+)/i);
     return m ? { n: parseInt(m[1]), t: parseInt(m[2]) } : null;
   }
 
@@ -659,8 +673,8 @@
 
     // ── Fallback: detecção por texto ──
     if (!counter) {
-      const hasAcertou = /você acertou|acertou!\s*mandou/i.test(tx0);
-      const hasErrou   = /você errou/i.test(tx0);
+      const hasAcertou = /você acertou|acertou!|mandou bem|resposta correta|gabarito correto|alternativa correta/i.test(tx0);
+      const hasErrou   = /você errou|resposta incorreta|gabarito incorreto|alternativa incorreta|errou!/i.test(tx0);
       if ((hasAcertou || hasErrou) && !warmup) {
         const qi = getInfo();
         const key = (qi.qid || cu) + '_' + (hasAcertou ? 'c' : 'e');
