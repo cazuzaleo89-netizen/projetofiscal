@@ -16,6 +16,44 @@ let filaCount   = 0;
 let activeSession = null;  // sessão corrente (não persistida ainda)
 
 // ════════════════════════════════════════════════════════
+// CRONÔMETRO (gerenciado no background para persistir entre navegações)
+// ════════════════════════════════════════════════════════
+
+const timer = {
+  startTime: null,   // Date.now() quando foi ligado/retomado
+  elapsed: 0,        // segundos acumulados (pausa incluída)
+  running: false,
+};
+
+function timerGetElapsed() {
+  if (!timer.running || !timer.startTime) return timer.elapsed;
+  return timer.elapsed + Math.floor((Date.now() - timer.startTime) / 1000);
+}
+
+function timerStart() {
+  if (timer.running) return;
+  timer.startTime = Date.now();
+  timer.running   = true;
+}
+
+function timerPause() {
+  if (!timer.running) return;
+  timer.elapsed   = timerGetElapsed();
+  timer.startTime = null;
+  timer.running   = false;
+}
+
+function timerReset() {
+  timer.startTime = null;
+  timer.elapsed   = 0;
+  timer.running   = false;
+}
+
+function timerSnapshot() {
+  return { elapsed: timerGetElapsed(), running: timer.running };
+}
+
+// ════════════════════════════════════════════════════════
 // ALGORITMO SM-2 (Repetição Espaçada)
 // ════════════════════════════════════════════════════════
 
@@ -351,6 +389,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           erros:     0,
           questions: [],
         };
+        // Auto-inicia cronômetro ao começar sessão
+        if (!timer.running) timerStart();
         break;
       }
 
@@ -359,17 +399,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const payload = msg.payload || {};
         if (activeSession) {
           activeSession.endTime  = Date.now();
-          activeSession.elapsed  = Math.round((activeSession.endTime - activeSession.startTime) / 1000);
+          activeSession.elapsed  = timerGetElapsed();
           if (payload.stats) {
             activeSession.acertos = payload.stats.correct || activeSession.acertos;
             activeSession.erros   = payload.stats.wrong   || activeSession.erros;
           }
           await saveSessions({ ...activeSession });
           await updateGlobalStats(activeSession.acertos, activeSession.erros);
+          timerReset();
           activeSession = null;
         }
         break;
       }
+
+      // ── Cronômetro: controles ──────────────────────────────────────────────
+      case 'TIMER_START':
+        timerStart();
+        sendResponse(timerSnapshot());
+        return;
+
+      case 'TIMER_PAUSE':
+        timerPause();
+        sendResponse(timerSnapshot());
+        return;
+
+      case 'TIMER_RESET':
+        timerReset();
+        sendResponse(timerSnapshot());
+        return;
+
+      case 'TIMER_GET':
+        sendResponse(timerSnapshot());
+        return;
 
       // ── Badge ──────────────────────────────────────────────────────────────
       case 'UPDATE_BADGE':
@@ -414,6 +475,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           panelTabId,
           tecTabId,
           activeSession,
+          timer: timerSnapshot(),
         });
         return;
       }

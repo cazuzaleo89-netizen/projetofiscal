@@ -45,6 +45,9 @@
 
   let widgetEl = null;
   let observer = null;
+  let timerInterval = null;   // setInterval do cronômetro
+  let timerElapsed  = 0;      // segundos (cache local do background)
+  let timerRunning  = false;
 
   // ════════════════════════════════════════════════════════
   // COMUNICAÇÃO COM PAINEL
@@ -76,6 +79,64 @@
   // Comunicação com background (armazenamento local)
   function toBg(type, payload) {
     try { chrome.runtime.sendMessage({ type, payload }); } catch (x) { /* */ }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // CRONÔMETRO
+  // ════════════════════════════════════════════════════════
+
+  function fmtTimer(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    const pad = n => String(n).padStart(2, '0');
+    return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  function updateTimerDisplay() {
+    const display = document.getElementById('_pf2timerVal');
+    const dot     = document.getElementById('_pf2timerDot');
+    const togBtn  = document.getElementById('_pf2timerTog');
+    if (!display) return;
+    if (timerRunning) timerElapsed++;          // incremento local entre polls
+    display.textContent = fmtTimer(timerElapsed);
+    if (dot) {
+      dot.style.background = timerRunning ? '#22c55e' : '#f59e0b';
+      dot.style.boxShadow  = timerRunning ? '0 0 6px #22c55e' : '0 0 5px #f59e0b';
+    }
+    if (togBtn) togBtn.textContent = timerRunning ? '⏸' : '▶';
+  }
+
+  function syncTimerFromBg(callback) {
+    try {
+      chrome.runtime.sendMessage({ type: 'TIMER_GET' }, resp => {
+        if (resp) {
+          timerElapsed = resp.elapsed || 0;
+          timerRunning = !!resp.running;
+          updateTimerDisplay();
+        }
+        if (callback) callback(resp);
+      });
+    } catch (x) { /* */ }
+  }
+
+  function startTimerTick() {
+    if (timerInterval) clearInterval(timerInterval);
+    // Poll background a cada 5 s para sincronizar; atualiza display a cada 1 s localmente
+    syncTimerFromBg();
+    timerInterval = setInterval(() => {
+      updateTimerDisplay();           // incremento local instantâneo
+    }, 1000);
+    // Re-sincroniza com background a cada 10 s
+    setInterval(syncTimerFromBg, 10000);
+  }
+
+  function timerControl(action) {
+    try {
+      chrome.runtime.sendMessage({ type: action }, resp => {
+        if (resp) { timerElapsed = resp.elapsed || 0; timerRunning = !!resp.running; updateTimerDisplay(); }
+      });
+    } catch (x) { /* */ }
   }
 
   // ════════════════════════════════════════════════════════
@@ -231,6 +292,31 @@
       }
       ._pf2syncbtn:hover{background:rgba(255,255,255,.12);color:#94a3b8;transform:rotate(180deg);}
 
+      /* Cronômetro */
+      ._pf2timer{
+        display:flex;align-items:center;gap:7px;
+        background:#0f1220;border:1px solid rgba(255,255,255,.07);
+        border-radius:10px;padding:9px 12px;margin-bottom:10px;
+      }
+      ._pf2timerdot{
+        width:7px;height:7px;border-radius:50%;flex-shrink:0;
+        transition:background .3s,box-shadow .3s;
+      }
+      ._pf2timerval{
+        flex:1;font-family:'SF Mono','Courier New',monospace;
+        font-size:22px;font-weight:800;color:#e2e8f0;letter-spacing:1px;line-height:1;
+      }
+      ._pf2timerbtn{
+        width:26px;height:26px;border:1px solid rgba(255,255,255,.1);
+        border-radius:7px;background:rgba(255,255,255,.06);
+        color:#94a3b8;font-size:13px;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        transition:all .15s;flex-shrink:0;padding:0;
+      }
+      ._pf2timerbtn:hover{background:rgba(255,255,255,.14);color:#e2e8f0;}
+      ._pf2timerbtn.paused{background:rgba(34,197,94,.1);border-color:#22c55e55;color:#22c55e;}
+      ._pf2timerbtn.paused:hover{background:rgba(34,197,94,.2);}
+
       /* Barra de precisão */
       ._pf2bar{height:3px;background:#2a2f47;border-radius:2px;margin-bottom:9px;overflow:hidden;}
       ._pf2barfill{height:100%;background:linear-gradient(90deg,#22c55e,#4ade80);border-radius:2px;transition:width .5s cubic-bezier(.16,1,.3,1);}
@@ -374,6 +460,15 @@
           ${reforco > 0 ? `<span class="qreforco">+${reforco} reforço</span>` : ''}
           <button class="_pf2syncbtn" id="_pf2sync" title="Sincronizar com painel">↺</button>
         </div>
+
+        <!-- Cronômetro -->
+        <div class="_pf2timer">
+          <div class="_pf2timerdot" id="_pf2timerDot" style="background:${timerRunning ? '#22c55e' : '#f59e0b'};box-shadow:0 0 6px ${timerRunning ? '#22c55e' : '#f59e0b'};"></div>
+          <span class="_pf2timerval" id="_pf2timerVal">${fmtTimer(timerElapsed)}</span>
+          <button class="_pf2timerbtn ${timerRunning ? '' : 'paused'}" id="_pf2timerTog" title="${timerRunning ? 'Pausar' : 'Iniciar'}">${timerRunning ? '⏸' : '▶'}</button>
+          <button class="_pf2timerbtn" id="_pf2timerReset" title="Zerar">⏹</button>
+        </div>
+
         ${answered > 0 ? `<div class="_pf2bar"><div class="_pf2barfill" style="width:${pct}%"></div></div>` : ''}
         <div class="_pf2pos">◆ ${curQ || '?'}/${showTotal || '?'}</div>
         <div class="_pf2grid">${circlesHtml}</div>
@@ -397,6 +492,22 @@
       ev.stopPropagation();
       toBg('GET_FILA', {});
       send('ping', null);
+    };
+
+    // Botões do cronômetro
+    document.getElementById('_pf2timerTog').onclick = ev => {
+      ev.stopPropagation();
+      timerControl(timerRunning ? 'TIMER_PAUSE' : 'TIMER_START');
+      timerRunning = !timerRunning;
+      renderWidget();  // re-render para trocar ícone imediatamente
+    };
+    document.getElementById('_pf2timerReset').onclick = ev => {
+      ev.stopPropagation();
+      if (confirm('Zerar cronômetro?')) {
+        timerControl('TIMER_RESET');
+        timerElapsed = 0; timerRunning = false;
+        renderWidget();
+      }
     };
 
     // Navegação: clica nos botões do TEC
@@ -700,14 +811,28 @@
     }
   });
 
-  // Visibilidade → auto-pausa
+  // Visibilidade → auto-pausa cronômetro + notifica painel
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       S.hiddenSince = Date.now();
+      // Pausa o cronômetro imediatamente ao esconder a aba
+      if (timerRunning) {
+        timerControl('TIMER_PAUSE');
+        timerRunning = false;
+        renderWidget();
+      }
       setTimeout(() => {
-        if (document.hidden && S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) sendRaw({ type: 'TEC_TAB_INACTIVE' });
+        if (document.hidden && S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) {
+          sendRaw({ type: 'TEC_TAB_INACTIVE' });
+        }
       }, 120000);
     } else {
+      // Retoma o cronômetro ao voltar para a aba
+      if (!timerRunning) {
+        timerControl('TIMER_START');
+        timerRunning = true;
+        renderWidget();
+      }
       if (S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) sendRaw({ type: 'TEC_TAB_ACTIVE' });
       S.hiddenSince = 0;
     }
@@ -757,6 +882,9 @@
 
     observer = new MutationObserver(check);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    // Inicia tick do cronômetro (sincroniza com background + atualiza display a cada 1s)
+    startTimerTick();
 
     try { chrome.runtime.sendMessage({ type: 'CONTENT_READY', connected, url: window.location.href }); } catch (x) { /* */ }
   }

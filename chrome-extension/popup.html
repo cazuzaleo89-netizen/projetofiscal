@@ -274,6 +274,14 @@ body{
 <!-- ══════════════════════════════════════════════ -->
 <div class="panel active" id="panel-hoje">
 
+  <!-- Cronômetro da sessão -->
+  <div style="display:flex;align-items:center;gap:9px;background:#0f1220;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 13px;margin-bottom:12px;">
+    <div id="pop-timer-dot" style="width:7px;height:7px;border-radius:50%;background:#374151;flex-shrink:0;transition:all .3s;"></div>
+    <span style="flex:1;font-family:'SF Mono','Courier New',monospace;font-size:20px;font-weight:800;color:#e2e8f0;letter-spacing:1px;line-height:1;" id="pop-timer-val">00:00</span>
+    <button class="s-btn" id="pop-timer-tog" onclick="popTimerToggle()" style="min-width:32px;">▶</button>
+    <button class="s-btn" id="pop-timer-reset" onclick="popTimerReset()" title="Zerar" style="min-width:32px;">⏹</button>
+  </div>
+
   <!-- Meta diária -->
   <div class="goal-row">
     <span class="goal-label">Meta diária</span>
@@ -397,6 +405,53 @@ const TEC_ORIGIN = 'tecconcursos.com.br';
 // ── Dados carregados ────────────────────────────────────────────────────────
 let appData = null;
 let cfgSettings = { dailyGoal: 30, notifications: true, autoReveal: true };
+let popTimerRunning = false;
+let popTimerElapsed = 0;
+let popTimerLocal = null;
+
+// ── Cronômetro no popup ─────────────────────────────────────────────────────
+function fmtTimer(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+function popTimerTick() {
+  if (popTimerRunning) popTimerElapsed++;
+  const val = document.getElementById('pop-timer-val');
+  const dot = document.getElementById('pop-timer-dot');
+  const tog = document.getElementById('pop-timer-tog');
+  if (val) val.textContent = fmtTimer(popTimerElapsed);
+  if (dot) { dot.style.background = popTimerRunning ? '#22c55e' : '#374151'; dot.style.boxShadow = popTimerRunning ? '0 0 6px #22c55e' : 'none'; }
+  if (tog) tog.textContent = popTimerRunning ? '⏸' : '▶';
+}
+
+function initPopTimer(timerData) {
+  if (!timerData) return;
+  popTimerElapsed = timerData.elapsed || 0;
+  popTimerRunning = !!timerData.running;
+  if (popTimerLocal) clearInterval(popTimerLocal);
+  popTimerLocal = setInterval(popTimerTick, 1000);
+  popTimerTick();
+}
+
+function popTimerToggle() {
+  const action = popTimerRunning ? 'TIMER_PAUSE' : 'TIMER_START';
+  chrome.runtime.sendMessage({ type: action }, resp => {
+    if (resp) { popTimerElapsed = resp.elapsed || 0; popTimerRunning = !!resp.running; popTimerTick(); }
+  });
+  popTimerRunning = !popTimerRunning;
+  popTimerTick();
+}
+
+function popTimerReset() {
+  if (!confirm('Zerar cronômetro?')) return;
+  chrome.runtime.sendMessage({ type: 'TIMER_RESET' }, resp => {
+    popTimerElapsed = 0; popTimerRunning = false; popTimerTick();
+  });
+}
 
 // ── Abas ────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(tab => {
@@ -640,6 +695,7 @@ async function loadAll() {
   renderHistorico(appData);
   renderConfig(appData);
   updateStatusBar();
+  initPopTimer(appData.timer);
 
   // Badge de revisões
   const dueCount = (appData.dueReviews || []).length;
