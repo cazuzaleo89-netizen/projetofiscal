@@ -5,301 +5,650 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel Fiscal</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    width: 280px;
-    background: #0a0f1e;
-    color: #e8edf8;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 13px;
-  }
+*{box-sizing:border-box;margin:0;padding:0;}
 
-  .header {
-    background: linear-gradient(135deg, #10b981, #0ea5e9);
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .header-icon { font-size: 22px; }
-  .header-title { font-size: 15px; font-weight: 800; line-height: 1.2; }
-  .header-sub { font-size: 11px; opacity: .8; }
+body{
+  width:340px;min-height:480px;max-height:600px;
+  background:#1a1d2e;color:#e2e8f0;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  font-size:13px;overflow-x:hidden;
+}
 
-  .body { padding: 12px 14px; }
+/* ── HEADER ── */
+.hd{
+  display:flex;align-items:center;gap:9px;
+  padding:11px 14px;
+  background:linear-gradient(135deg,#252a40,#1e2338);
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.hd-logo{
+  width:28px;height:28px;background:#f59e0b;border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:900;flex-shrink:0;
+}
+.hd-info{flex:1;}
+.hd-title{font-size:14px;font-weight:800;color:#e2e8f0;letter-spacing:.2px;}
+.hd-sub{font-size:10px;color:#64748b;margin-top:1px;}
+.hd-streak{
+  display:flex;align-items:center;gap:4px;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);
+  border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;color:#f59e0b;
+}
 
-  .status-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: #161d2e;
-    border-radius: 10px;
-    margin-bottom: 10px;
-  }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #6b7280;
-    flex-shrink: 0;
-  }
-  .status-dot.active { background: #10b981; box-shadow: 0 0 6px #10b981; }
-  .status-dot.warn { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
-  .status-text { flex: 1; font-size: 12px; color: #94a3b8; }
-  .status-text strong { color: #e8edf8; }
+/* ── STATUS BAR ── */
+.status-bar{
+  display:flex;align-items:center;gap:7px;
+  padding:7px 14px;background:#141728;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.s-dot{width:7px;height:7px;border-radius:50%;background:#374151;flex-shrink:0;}
+.s-dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e;}
+.s-dot.warn{background:#f59e0b;box-shadow:0 0 6px #f59e0b;}
+.s-txt{flex:1;font-size:11px;color:#64748b;}
+.s-txt strong{color:#94a3b8;}
+.s-actions{display:flex;gap:5px;}
+.s-btn{
+  padding:3px 9px;border:1px solid rgba(255,255,255,.09);
+  background:#20243a;color:#94a3b8;border-radius:6px;
+  font-size:10px;font-weight:700;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.s-btn:hover{background:#272c47;color:#e2e8f0;}
+.s-btn.green{background:#15803d22;border-color:#22c55e44;color:#22c55e;}
+.s-btn.green:hover{background:#15803d44;}
 
-  .stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .stat-card {
-    background: #161d2e;
-    border-radius: 8px;
-    padding: 8px;
-    text-align: center;
-  }
-  .stat-val { font-size: 18px; font-weight: 800; }
-  .stat-label { font-size: 10px; color: #64748b; margin-top: 2px; }
-  .stat-card.green .stat-val { color: #10b981; }
-  .stat-card.red .stat-val { color: #ef4444; }
-  .stat-card.cyan .stat-val { color: #22d3ee; }
+/* ── ABAS ── */
+.tabs{
+  display:flex;border-bottom:1px solid rgba(255,255,255,.07);
+  background:#141728;
+}
+.tab{
+  flex:1;padding:9px 4px;font-size:11px;font-weight:700;
+  color:#475569;cursor:pointer;text-align:center;letter-spacing:.4px;
+  border-bottom:2px solid transparent;transition:all .15s;
+}
+.tab:hover{color:#94a3b8;}
+.tab.active{color:#6366f1;border-bottom-color:#6366f1;}
 
-  .timer-row {
-    background: #161d2e;
-    border-radius: 10px;
-    padding: 10px 14px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-  .timer-label { font-size: 11px; color: #64748b; }
-  .timer-val { font-family: monospace; font-size: 18px; font-weight: 800; color: #22d3ee; }
-  .timer-disc { font-size: 11px; color: #94a3b8; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ── PAINEIS ── */
+.panel{display:none;padding:13px 14px;overflow-y:auto;max-height:calc(600px - 130px);}
+.panel.active{display:block;}
 
-  .fila-row {
-    background: rgba(239,68,68,.1);
-    border: 1px solid rgba(239,68,68,.3);
-    border-radius: 8px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    cursor: pointer;
-    transition: background .2s;
-  }
-  .fila-row:hover { background: rgba(239,68,68,.2); }
-  .fila-count { font-size: 16px; font-weight: 800; color: #ef4444; }
-  .fila-text { flex: 1; font-size: 11px; color: #fca5a5; }
+/* ── SEÇÃO: Hoje ── */
+.goal-row{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.goal-label{font-size:11px;color:#64748b;}
+.goal-val{font-size:11px;font-weight:700;color:#6366f1;}
+.goal-bar{height:5px;background:#20243a;border-radius:3px;margin-bottom:12px;overflow:hidden;}
+.goal-bar-fill{height:100%;background:linear-gradient(90deg,#6366f1,#818cf8);border-radius:3px;transition:width .5s cubic-bezier(.16,1,.3,1);}
 
-  .btn {
-    display: block;
-    width: 100%;
-    padding: 10px;
-    border: none;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .2s;
-    text-align: center;
-    text-decoration: none;
-  }
-  .btn-primary {
-    background: linear-gradient(135deg, #10b981, #0ea5e9);
-    color: #fff;
-    margin-bottom: 8px;
-  }
-  .btn-primary:hover { opacity: .9; transform: translateY(-1px); }
-  .btn-secondary {
-    background: #161d2e;
-    color: #94a3b8;
-    border: 1px solid rgba(255,255,255,.08);
-  }
-  .btn-secondary:hover { color: #e8edf8; border-color: rgba(255,255,255,.2); }
+.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:12px;}
+.sc{
+  background:#20243a;border-radius:9px;padding:10px 6px;text-align:center;
+  border:1px solid rgba(255,255,255,.06);
+}
+.sc-val{font-size:20px;font-weight:800;line-height:1;margin-bottom:3px;}
+.sc-lbl{font-size:9px;color:#475569;letter-spacing:.8px;font-weight:700;}
+.sc.green .sc-val{color:#22c55e;}
+.sc.red .sc-val{color:#ef4444;}
+.sc.blue .sc-val{color:#6366f1;}
+.sc.cyan .sc-val{color:#22d3ee;}
 
-  .footer {
-    padding: 8px 14px;
-    border-top: 1px solid rgba(255,255,255,.06);
-    font-size: 10px;
-    color: #374151;
-    text-align: center;
-  }
-  .no-tec {
-    padding: 16px;
-    text-align: center;
-    color: #64748b;
-    font-size: 12px;
-    line-height: 1.6;
-  }
-  .no-tec .icon { font-size: 28px; margin-bottom: 8px; }
+/* Taxa circular */
+.acc-ring{
+  display:flex;align-items:center;gap:10px;
+  background:#20243a;border-radius:10px;padding:11px 13px;
+  margin-bottom:12px;border:1px solid rgba(255,255,255,.06);
+}
+.ring-svg{flex-shrink:0;}
+.ring-info{flex:1;}
+.ring-pct{font-size:22px;font-weight:800;color:#22c55e;line-height:1;}
+.ring-lbl{font-size:10px;color:#64748b;margin-top:2px;}
+.ring-sub{font-size:10px;color:#475569;margin-top:6px;line-height:1.5;}
+
+/* Matérias */
+.subj-title{font-size:10px;font-weight:700;color:#475569;letter-spacing:1px;margin-bottom:8px;}
+.subj-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.subj-name{flex:1;font-size:11px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.subj-bar{flex:2;height:4px;background:#20243a;border-radius:2px;overflow:hidden;}
+.subj-bar-fill{height:100%;background:#6366f1;border-radius:2px;}
+.subj-pct{font-size:10px;color:#6366f1;font-weight:700;width:28px;text-align:right;flex-shrink:0;}
+
+/* ── SEÇÃO: Revisão ── */
+.rev-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.rev-count{font-size:11px;color:#64748b;}
+.rev-count strong{color:#ef4444;}
+.rev-filter{
+  padding:3px 9px;border:1px solid rgba(255,255,255,.09);
+  background:#20243a;color:#94a3b8;border-radius:6px;
+  font-size:10px;cursor:pointer;
+}
+
+.rev-empty{
+  text-align:center;padding:30px 20px;color:#475569;
+}
+.rev-empty .icon{font-size:32px;margin-bottom:8px;}
+.rev-empty p{font-size:12px;line-height:1.6;}
+
+.qcard{
+  background:#20243a;border:1px solid rgba(255,255,255,.07);
+  border-radius:10px;padding:10px 12px;margin-bottom:7px;
+}
+.qcard.due{border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.05);}
+.qcard-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;}
+.qcard-icon{
+  width:28px;height:28px;border-radius:7px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+}
+.qcard-icon.wrong{background:rgba(239,68,68,.15);color:#ef4444;}
+.qcard-meta{flex:1;min-width:0;}
+.qcard-mat{font-size:10px;color:#6366f1;font-weight:700;letter-spacing:.3px;margin-bottom:2px;}
+.qcard-desc{font-size:11.5px;color:#c7d2fe;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.qcard-badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+.badge{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:9px;font-weight:700;letter-spacing:.4px;
+  padding:2px 7px;border-radius:20px;
+}
+.badge.err{background:rgba(239,68,68,.15);color:#fca5a5;}
+.badge.due-now{background:rgba(245,158,11,.15);color:#fcd34d;}
+.badge.future{background:rgba(99,102,241,.12);color:#a5b4fc;}
+.badge.dif{background:rgba(99,102,241,.1);color:#818cf8;}
+.qcard-btns{display:flex;gap:6px;}
+.qbtn{
+  flex:1;padding:6px 4px;border:1px solid rgba(255,255,255,.09);
+  border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;
+  transition:all .15s;text-align:center;
+}
+.qbtn.review{background:#20243a;color:#94a3b8;}
+.qbtn.review:hover{background:#272c47;color:#e2e8f0;}
+.qbtn.acertei{background:rgba(22,163,74,.15);border-color:#22c55e44;color:#22c55e;}
+.qbtn.acertei:hover{background:rgba(22,163,74,.25);}
+.qbtn.errei{background:rgba(185,28,28,.15);border-color:#ef444444;color:#ef4444;}
+.qbtn.errei:hover{background:rgba(185,28,28,.25);}
+
+/* ── SEÇÃO: Histórico ── */
+.hist-empty{text-align:center;padding:30px;color:#475569;}
+.scard{
+  background:#20243a;border:1px solid rgba(255,255,255,.07);
+  border-radius:10px;padding:11px 13px;margin-bottom:8px;
+}
+.scard-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.scard-date{font-size:10px;color:#64748b;font-weight:700;}
+.scard-acc{font-size:11px;font-weight:800;}
+.scard-name{font-size:12px;font-weight:700;color:#c7d2fe;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.scard-stats{display:flex;gap:10px;}
+.sstat{font-size:10px;color:#64748b;}
+.sstat span{font-weight:700;}
+.sstat.g span{color:#22c55e;}
+.sstat.r span{color:#ef4444;}
+.sstat.p span{color:#6366f1;}
+
+/* ── SEÇÃO: Config ── */
+.cfg-group{margin-bottom:16px;}
+.cfg-label{font-size:10px;color:#64748b;letter-spacing:.8px;font-weight:700;margin-bottom:7px;display:block;}
+.cfg-input{
+  width:100%;padding:8px 11px;background:#20243a;
+  border:1px solid rgba(255,255,255,.09);border-radius:8px;
+  color:#e2e8f0;font-size:13px;outline:none;
+  transition:border-color .15s;
+}
+.cfg-input:focus{border-color:#6366f1;}
+.cfg-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 12px;background:#20243a;border:1px solid rgba(255,255,255,.07);
+  border-radius:9px;margin-bottom:7px;cursor:pointer;
+}
+.cfg-toggle-label{font-size:12px;color:#94a3b8;}
+.toggle-sw{
+  width:36px;height:20px;background:#374151;border-radius:10px;
+  position:relative;transition:background .2s;cursor:pointer;flex-shrink:0;
+}
+.toggle-sw.on{background:#6366f1;}
+.toggle-sw::after{
+  content:'';position:absolute;top:3px;left:3px;
+  width:14px;height:14px;border-radius:50%;background:#fff;
+  transition:transform .2s;
+}
+.toggle-sw.on::after{transform:translateX(16px);}
+
+.cfg-btn{
+  width:100%;padding:9px;border:none;border-radius:9px;
+  font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;margin-bottom:7px;
+}
+.cfg-btn.primary{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;}
+.cfg-btn.primary:hover{opacity:.9;}
+.cfg-btn.danger{background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);}
+.cfg-btn.danger:hover{background:rgba(239,68,68,.2);}
+.cfg-btn.export{background:#20243a;color:#94a3b8;border:1px solid rgba(255,255,255,.09);}
+.cfg-btn.export:hover{color:#e2e8f0;}
+
+/* ── FOOTER ── */
+.footer{
+  padding:7px 14px;border-top:1px solid rgba(255,255,255,.05);
+  font-size:9px;color:#1f2937;text-align:center;background:#141728;
+}
+
+/* ── UTILITÁRIOS ── */
+.hidden{display:none!important;}
+.loading{opacity:.5;pointer-events:none;}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="header-icon">⚡</div>
-  <div>
-    <div class="header-title">Painel Fiscal</div>
-    <div class="header-sub">Monitor TEC — Extensão</div>
+
+<!-- HEADER -->
+<div class="hd">
+  <div class="hd-logo">≡</div>
+  <div class="hd-info">
+    <div class="hd-title">Painel Fiscal</div>
+    <div class="hd-sub">TEC Automator Pro v2.0</div>
+  </div>
+  <div class="hd-streak" id="streak-badge">🔥 0d</div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <div class="s-dot" id="s-dot"></div>
+  <div class="s-txt" id="s-txt">Verificando...</div>
+  <div class="s-actions">
+    <button class="s-btn" id="btn-tec" onclick="openTec()">📝 TEC</button>
+    <button class="s-btn green" id="btn-panel" onclick="openPanel()">🖥 Painel</button>
   </div>
 </div>
 
-<div class="body">
-  <!-- Estado da conexão -->
-  <div class="status-row">
-    <div class="status-dot" id="status-dot"></div>
-    <div class="status-text" id="status-text">Verificando...</div>
-  </div>
-
-  <!-- Timer + disciplina -->
-  <div class="timer-row" id="timer-row" style="display:none;">
-    <div>
-      <div class="timer-label">Cronômetro</div>
-      <div class="timer-disc" id="pop-disc">—</div>
-    </div>
-    <div class="timer-val" id="pop-timer">00:00:00</div>
-  </div>
-
-  <!-- Stats -->
-  <div class="stats-grid" id="stats-grid" style="display:none;">
-    <div class="stat-card green">
-      <div class="stat-val" id="pop-acertos">0</div>
-      <div class="stat-label">Acertos</div>
-    </div>
-    <div class="stat-card red">
-      <div class="stat-val" id="pop-erros">0</div>
-      <div class="stat-label">Erros</div>
-    </div>
-    <div class="stat-card cyan">
-      <div class="stat-val" id="pop-pct">—</div>
-      <div class="stat-label">Taxa</div>
-    </div>
-  </div>
-
-  <!-- Fila de revisão -->
-  <div class="fila-row" id="fila-row" style="display:none;" onclick="openTec()">
-    <div class="fila-count" id="pop-fila">0</div>
-    <div class="fila-text">revisões pendentes<br><span style="color:#94a3b8;">Alt+R no TEC para abrir</span></div>
-    <div>📋</div>
-  </div>
-
-  <!-- Sem TEC aberto -->
-  <div class="no-tec" id="no-tec" style="display:none;">
-    <div class="icon">🎯</div>
-    Abra o TecConcursos para o monitor entrar em ação automaticamente.
-  </div>
-
-  <!-- TEC aberto mas sem content script (aba já estava aberta antes da instalação) -->
-  <div class="no-tec" id="needs-reload" style="display:none;">
-    <div class="icon">🔄</div>
-    Aba TEC detectada! Recarregue-a para ativar o monitor.
-  </div>
-
-  <a class="btn btn-primary" id="btn-painel" href="#" onclick="openPanel()">
-    🖥 Abrir Painel Fiscal
-  </a>
-  <button class="btn btn-secondary" id="btn-reload" onclick="reloadTec()" style="display:none;margin-bottom:8px;">
-    🔄 Recarregar aba TEC
-  </button>
-  <a class="btn btn-secondary" id="btn-tec" href="#" onclick="openTec()" style="display:none;">
-    📝 Focar no TecConcursos
-  </a>
+<!-- ABAS -->
+<div class="tabs">
+  <div class="tab active" data-tab="hoje">HOJE</div>
+  <div class="tab" data-tab="revisao">REVISÃO</div>
+  <div class="tab" data-tab="historico">HISTÓRICO</div>
+  <div class="tab" data-tab="config">CONFIG</div>
 </div>
 
-<div class="footer">Painel Fiscal Monitor TEC v1.0</div>
+<!-- ══════════════════════════════════════════════ -->
+<!-- PAINEL: HOJE                                   -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel active" id="panel-hoje">
+
+  <!-- Meta diária -->
+  <div class="goal-row">
+    <span class="goal-label">Meta diária</span>
+    <span class="goal-val" id="goal-progress">0 / 30</span>
+  </div>
+  <div class="goal-bar"><div class="goal-bar-fill" id="goal-fill" style="width:0%"></div></div>
+
+  <!-- Grid de stats -->
+  <div class="stats-grid">
+    <div class="sc blue">
+      <div class="sc-val" id="d-resolved">0</div>
+      <div class="sc-lbl">FEITAS</div>
+    </div>
+    <div class="sc green">
+      <div class="sc-val" id="d-acertos">0</div>
+      <div class="sc-lbl">ACERTOS</div>
+    </div>
+    <div class="sc red">
+      <div class="sc-val" id="d-erros">0</div>
+      <div class="sc-lbl">ERROS</div>
+    </div>
+  </div>
+
+  <!-- Taxa de acerto -->
+  <div class="acc-ring">
+    <svg class="ring-svg" width="56" height="56" viewBox="0 0 56 56">
+      <circle cx="28" cy="28" r="22" fill="none" stroke="#20243a" stroke-width="5"/>
+      <circle id="ring-arc" cx="28" cy="28" r="22" fill="none" stroke="#22c55e" stroke-width="5"
+        stroke-linecap="round" stroke-dasharray="138.2" stroke-dashoffset="138.2"
+        transform="rotate(-90 28 28)" style="transition:stroke-dashoffset .6s cubic-bezier(.16,1,.3,1)"/>
+    </svg>
+    <div class="ring-info">
+      <div class="ring-pct" id="ring-pct">—</div>
+      <div class="ring-lbl">Taxa de acerto hoje</div>
+      <div class="ring-sub" id="ring-sub">Resolva questões no TEC para<br>começar a rastrear.</div>
+    </div>
+  </div>
+
+  <!-- Matérias -->
+  <div class="subj-title" id="subj-section-title">MATÉRIAS — ALL TIME</div>
+  <div id="subj-list">
+    <div style="font-size:11px;color:#374151;text-align:center;padding:12px 0;">Nenhuma matéria registrada ainda.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- PAINEL: REVISÃO                               -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel" id="panel-revisao">
+  <div class="rev-header">
+    <div class="rev-count"><strong id="due-count">0</strong> questões para revisar</div>
+  </div>
+  <div id="rev-list">
+    <div class="rev-empty">
+      <div class="icon">🎉</div>
+      <p>Nenhuma revisão pendente!<br>Continue resolvendo questões.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- PAINEL: HISTÓRICO                             -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel" id="panel-historico">
+  <div id="hist-list">
+    <div class="hist-empty">
+      <div style="font-size:28px;margin-bottom:8px;">📋</div>
+      <div style="font-size:12px;color:#64748b;">Nenhuma sessão registrada ainda.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- PAINEL: CONFIG                                -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="panel" id="panel-config">
+  <div class="cfg-group">
+    <label class="cfg-label">META DIÁRIA (questões)</label>
+    <input class="cfg-input" type="number" id="cfg-goal" min="5" max="500" value="30">
+  </div>
+
+  <div class="cfg-group">
+    <label class="cfg-label">PREFERÊNCIAS</label>
+    <div class="cfg-toggle" onclick="toggleSetting('notifications')">
+      <span class="cfg-toggle-label">🔔 Notificações desktop</span>
+      <div class="toggle-sw" id="tog-notifications"></div>
+    </div>
+    <div class="cfg-toggle" onclick="toggleSetting('autoReveal')">
+      <span class="cfg-toggle-label">🔍 Auto-abrir desempenho</span>
+      <div class="toggle-sw on" id="tog-autoReveal"></div>
+    </div>
+  </div>
+
+  <div class="cfg-group">
+    <label class="cfg-label">AÇÕES</label>
+    <button class="cfg-btn primary" onclick="saveConfig()">💾 Salvar configurações</button>
+    <button class="cfg-btn export" onclick="exportWrong()">⬇ Exportar questões erradas (JSON)</button>
+    <button class="cfg-btn export" onclick="exportCSV()">⬇ Exportar como CSV</button>
+    <button class="cfg-btn danger" onclick="resetStats()">🗑 Resetar estatísticas</button>
+  </div>
+
+  <div style="background:#20243a;border-radius:9px;padding:10px 12px;border:1px solid rgba(255,255,255,.06);">
+    <div style="font-size:10px;color:#64748b;font-weight:700;letter-spacing:.8px;margin-bottom:5px;">💡 MELHORIAS PLANEJADAS</div>
+    <div style="font-size:10px;color:#475569;line-height:1.7;">
+      • Gráfico de desempenho semanal<br>
+      • Modo pomodoro integrado<br>
+      • Ranking de matérias por prioridade<br>
+      • Integração com Google Sheets<br>
+      • Predição de aprovação por banca<br>
+      • Simulado automático com erros
+    </div>
+  </div>
+</div>
+
+<div class="footer">Painel Fiscal — TEC Automator Pro v2.0</div>
 
 <script>
 const PANEL_URL = 'https://cazuzaleo89-netizen.github.io/projetofiscal/';
 const TEC_ORIGIN = 'tecconcursos.com.br';
 
-// Encontra aba por URL manualmente (mais confiável que query por URL pattern)
+// ── Dados carregados ────────────────────────────────────────────────────────
+let appData = null;
+let cfgSettings = { dailyGoal: 30, notifications: true, autoReveal: true };
+
+// ── Abas ────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Utilitários ─────────────────────────────────────────────────────────────
 async function findTab(origin) {
   const all = await chrome.tabs.query({});
   return all.find(t => t.url && t.url.includes(origin)) || null;
 }
 
-// Testa se o content script está rodando na aba
 async function pingContent(tabId) {
   return new Promise(resolve => {
-    const timer = setTimeout(() => resolve(false), 600);
+    const timer = setTimeout(() => resolve(null), 700);
     try {
-      chrome.tabs.sendMessage(tabId, { type: 'PING' }, (resp) => {
+      chrome.tabs.sendMessage(tabId, { type: 'PING' }, resp => {
         clearTimeout(timer);
-        resolve(!!resp);
+        resolve(resp || null);
       });
-    } catch(x) { clearTimeout(timer); resolve(false); }
+    } catch { clearTimeout(timer); resolve(null); }
   });
 }
 
-async function refresh() {
-  const dot = document.getElementById('status-dot');
-  const txt = document.getElementById('status-text');
-  const noTec = document.getElementById('no-tec');
-  const needsReload = document.getElementById('needs-reload');
-  const timerRow = document.getElementById('timer-row');
-  const statsGrid = document.getElementById('stats-grid');
-  const filaRow = document.getElementById('fila-row');
-  const btnTec = document.getElementById('btn-tec');
-  const btnReload = document.getElementById('btn-reload');
+function fmt(n) { return (n || 0).toString(); }
+function pct(a, t) { return t > 0 ? Math.round(a / t * 100) : 0; }
 
-  let filaCount = 0;
-  let tecTab = null;
-  let contentActive = false;
+function fmtDate(isoDate) {
+  if (!isoDate) return '—';
+  const [y, m, d] = isoDate.split('-');
+  return `${d}/${m}/${y}`;
+}
 
-  try { tecTab = await findTab(TEC_ORIGIN); } catch(x) {}
+function fmtElapsed(secs) {
+  if (!secs) return '—';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 
-  if (tecTab) {
-    contentActive = await pingContent(tecTab.id);
-  }
+function accColor(rate) {
+  if (rate >= 70) return '#22c55e';
+  if (rate >= 50) return '#f59e0b';
+  return '#ef4444';
+}
 
-  // Busca filaCount do background
-  try {
-    const res = await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('timeout')), 800);
-      chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (r) => {
-        clearTimeout(t);
-        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-        else resolve(r);
-      });
-    });
-    if (res) filaCount = res.filaCount || 0;
-  } catch(x) {}
+// ── Renderização: Hoje ──────────────────────────────────────────────────────
+function renderHoje(data) {
+  const today = data.todayStats || {};
+  const global = data.globalStats || {};
+  const goal = (data.settings || {}).dailyGoal || 30;
 
-  if (!tecTab) {
-    dot.className = 'status-dot warn';
-    txt.innerHTML = 'Nenhuma aba do TEC aberta';
-    noTec.style.display = 'block';
-    needsReload.style.display = 'none';
-    btnTec.style.display = 'none';
-    btnReload.style.display = 'none';
-    timerRow.style.display = 'none';
-    statsGrid.style.display = 'none';
-    filaRow.style.display = 'none';
-  } else if (!contentActive) {
-    dot.className = 'status-dot warn';
-    txt.innerHTML = '<strong>TEC detectado</strong> — recarregue a aba';
-    noTec.style.display = 'none';
-    needsReload.style.display = 'block';
-    btnReload.style.display = 'block';
-    btnTec.style.display = 'none';
-    timerRow.style.display = 'none';
-    statsGrid.style.display = 'none';
-    filaRow.style.display = 'none';
+  // Streak
+  document.getElementById('streak-badge').textContent = `🔥 ${global.streak || 0}d`;
+
+  // Meta
+  const resolved = today.resolved || 0;
+  const goalPct = Math.min(100, Math.round(resolved / goal * 100));
+  document.getElementById('goal-progress').textContent = `${resolved} / ${goal}`;
+  document.getElementById('goal-fill').style.width = goalPct + '%';
+
+  // Stats grid
+  document.getElementById('d-resolved').textContent = fmt(resolved);
+  document.getElementById('d-acertos').textContent  = fmt(today.acertos);
+  document.getElementById('d-erros').textContent    = fmt(today.erros);
+
+  // Taxa
+  const taxa = pct(today.acertos || 0, resolved);
+  const arc = document.getElementById('ring-arc');
+  const circumf = 138.2;
+  arc.style.strokeDashoffset = circumf - (circumf * taxa / 100);
+  arc.style.stroke = accColor(taxa);
+  document.getElementById('ring-pct').style.color = accColor(taxa);
+  document.getElementById('ring-pct').textContent = resolved > 0 ? taxa + '%' : '—';
+  document.getElementById('ring-sub').textContent = resolved > 0
+    ? `${today.acertos || 0} acertos · ${today.erros || 0} erros hoje`
+    : 'Resolva questões no TEC para começar a rastrear.';
+
+  // Matérias
+  const subjects = data.subjectStats || [];
+  const subjList = document.getElementById('subj-list');
+  if (!subjects.length) {
+    subjList.innerHTML = '<div style="font-size:11px;color:#374151;text-align:center;padding:12px 0;">Nenhuma matéria registrada ainda.</div>';
   } else {
-    dot.className = 'status-dot active';
-    txt.innerHTML = '<strong>Monitor ativo ⚡</strong>';
-    noTec.style.display = 'none';
-    needsReload.style.display = 'none';
-    btnReload.style.display = 'none';
-    btnTec.style.display = 'block';
-    if (filaCount > 0) {
-      filaRow.style.display = 'flex';
-      document.getElementById('pop-fila').textContent = filaCount;
-    }
+    const maxTotal = Math.max(...subjects.map(s => s.total));
+    subjList.innerHTML = subjects.slice(0, 7).map(s => {
+      const p = pct(s.acertos, s.total);
+      return `<div class="subj-row">
+        <span class="subj-name">${s.materia}</span>
+        <div class="subj-bar"><div class="subj-bar-fill" style="width:${Math.round(s.total/maxTotal*100)}%;background:${accColor(p)};"></div></div>
+        <span class="subj-pct" style="color:${accColor(p)}">${p}%</span>
+      </div>`;
+    }).join('');
   }
 }
 
+// ── Renderização: Revisão ───────────────────────────────────────────────────
+function renderRevisao(data) {
+  const due = data.dueReviews || [];
+  document.getElementById('due-count').textContent = due.length;
+
+  if (!due.length) {
+    document.getElementById('rev-list').innerHTML = `
+      <div class="rev-empty">
+        <div class="icon">🎉</div>
+        <p>Nenhuma revisão pendente!<br>Continue resolvendo questões.</p>
+      </div>`;
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('rev-list').innerHTML = due.map(q => {
+    const isDue = q.nextReview <= today;
+    const errBadge = `<span class="badge err">✕ ${q.errorCount}x</span>`;
+    const dateBadge = isDue
+      ? `<span class="badge due-now">⏰ Revisar hoje</span>`
+      : `<span class="badge future">📅 ${fmtDate(q.nextReview)}</span>`;
+    const difBadge = q.dificuldade ? `<span class="badge dif">${q.dificuldade}</span>` : '';
+    const desc = (q.desc || 'Questão #' + q.qid).slice(0, 55);
+
+    return `<div class="qcard ${isDue ? 'due' : ''}">
+      <div class="qcard-top">
+        <div class="qcard-icon wrong">✕</div>
+        <div class="qcard-meta">
+          <div class="qcard-mat">${q.materia || 'Matéria'}</div>
+          <div class="qcard-desc" title="${q.desc || ''}">${desc}</div>
+        </div>
+      </div>
+      <div class="qcard-badges">${errBadge}${dateBadge}${difBadge}</div>
+      <div class="qcard-btns">
+        <button class="qbtn review" onclick="openQuestion('${q.url}')">📖 Revisar</button>
+        <button class="qbtn acertei" onclick="markReview('${q.qid}', 4)">✓ Acertei</button>
+        <button class="qbtn errei" onclick="markReview('${q.qid}', 1)">✕ Errei</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Renderização: Histórico ─────────────────────────────────────────────────
+function renderHistorico(data) {
+  const sessions = data.sessions || [];
+  if (!sessions.length) {
+    document.getElementById('hist-list').innerHTML = `
+      <div class="hist-empty">
+        <div style="font-size:28px;margin-bottom:8px;">📋</div>
+        <div style="font-size:12px;color:#64748b;">Nenhuma sessão registrada ainda.<br>Conclua um caderno no TEC para registrar.</div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('hist-list').innerHTML = sessions.map(s => {
+    const taxa = pct(s.acertos || 0, (s.acertos || 0) + (s.erros || 0));
+    const color = accColor(taxa);
+    return `<div class="scard">
+      <div class="scard-top">
+        <span class="scard-date">📅 ${fmtDate(s.date)}</span>
+        <span class="scard-acc" style="color:${color}">${taxa}%</span>
+      </div>
+      <div class="scard-name">${s.caderno || s.materia || 'Sessão TEC'}</div>
+      <div class="scard-stats">
+        <span class="sstat p">Total <span>${(s.acertos || 0) + (s.erros || 0)}</span></span>
+        <span class="sstat g">Acertos <span>${s.acertos || 0}</span></span>
+        <span class="sstat r">Erros <span>${s.erros || 0}</span></span>
+        <span class="sstat">⏱ <span>${fmtElapsed(s.elapsed)}</span></span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Renderização: Config ────────────────────────────────────────────────────
+function renderConfig(data) {
+  cfgSettings = data.settings || cfgSettings;
+  document.getElementById('cfg-goal').value = cfgSettings.dailyGoal || 30;
+  setToggle('notifications', cfgSettings.notifications !== false);
+  setToggle('autoReveal', cfgSettings.autoReveal !== false);
+}
+
+function setToggle(id, on) {
+  const el = document.getElementById('tog-' + id);
+  if (el) el.className = 'toggle-sw' + (on ? ' on' : '');
+}
+
+function toggleSetting(id) {
+  cfgSettings[id] = !cfgSettings[id];
+  setToggle(id, cfgSettings[id]);
+}
+
+// ── Status bar ──────────────────────────────────────────────────────────────
+async function updateStatusBar() {
+  const dot = document.getElementById('s-dot');
+  const txt = document.getElementById('s-txt');
+  let tecTab = null;
+  let pingData = null;
+
+  try { tecTab = await findTab(TEC_ORIGIN); } catch { /* */ }
+  if (tecTab) {
+    try { pingData = await pingContent(tecTab.id); } catch { /* */ }
+  }
+
+  if (!tecTab) {
+    dot.className = 's-dot warn';
+    txt.innerHTML = 'TEC não está aberto';
+  } else if (!pingData) {
+    dot.className = 's-dot warn';
+    txt.innerHTML = '<strong>TEC detectado</strong> — recarregue a aba';
+  } else {
+    dot.className = 's-dot on';
+    const { localAce = 0, localErr = 0, caderno = '' } = pingData.stats || {};
+    const total = localAce + localErr;
+    txt.innerHTML = total > 0
+      ? `<strong>⚡ Ativo</strong> · ✓${localAce} ✕${localErr}`
+      : `<strong>⚡ Monitor ativo</strong>`;
+  }
+}
+
+// ── Load completo ───────────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    appData = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), 2000);
+      chrome.runtime.sendMessage({ type: 'GET_POPUP_DATA' }, r => {
+        clearTimeout(t);
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(r || {});
+      });
+    });
+  } catch {
+    appData = { todayStats: {}, globalStats: {}, sessions: [], subjectStats: [], dueReviews: [], settings: {} };
+  }
+
+  renderHoje(appData);
+  renderRevisao(appData);
+  renderHistorico(appData);
+  renderConfig(appData);
+  updateStatusBar();
+
+  // Badge de revisões
+  const dueCount = (appData.dueReviews || []).length;
+  if (dueCount > 0) {
+    document.querySelector('[data-tab="revisao"]').textContent = `REVISÃO (${dueCount})`;
+  }
+}
+
+// ── Ações ────────────────────────────────────────────────────────────────────
 function openPanel() {
   findTab('cazuzaleo89-netizen.github.io').then(tab => {
     if (tab) chrome.tabs.update(tab.id, { active: true });
@@ -316,14 +665,70 @@ function openTec() {
   });
 }
 
-function reloadTec() {
-  findTab(TEC_ORIGIN).then(tab => {
-    if (tab) chrome.tabs.reload(tab.id);
-    window.close();
+function openQuestion(url) {
+  if (!url) return;
+  chrome.tabs.create({ url });
+  window.close();
+}
+
+async function markReview(qid, quality) {
+  if (!qid) return;
+  await new Promise(resolve => {
+    chrome.runtime.sendMessage({ type: 'REVIEW_QUESTION', qid, quality }, resolve);
+  });
+  await loadAll();
+  // Volta pra aba revisão
+  document.querySelector('[data-tab="revisao"]').click();
+}
+
+function saveConfig() {
+  cfgSettings.dailyGoal = parseInt(document.getElementById('cfg-goal').value) || 30;
+  chrome.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: cfgSettings }, () => {
+    const btn = document.querySelector('.cfg-btn.primary');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Salvo!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
   });
 }
 
-refresh();
+async function exportWrong() {
+  const r = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'EXPORT_WRONG' }, resolve));
+  if (!r || !r.bank) return;
+  const blob = new Blob([JSON.stringify(r.bank, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'painel-fiscal-erros.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportCSV() {
+  const r = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'EXPORT_WRONG' }, resolve));
+  if (!r || !r.bank) return;
+  const header = 'QID,Matéria,Assunto,Erros,Última Erro,Próxima Revisão,URL';
+  const rows = r.bank.map(q =>
+    [q.qid, q.materia, q.assunto, q.errorCount, q.lastError, q.nextReview, q.url]
+      .map(v => `"${(v || '').toString().replace(/"/g, '""')}"`)
+      .join(',')
+  );
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'painel-fiscal-erros.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetStats() {
+  if (!confirm('⚠ Isso apagará TODOS os dados locais (sessões, erros, stats). Tem certeza?')) return;
+  chrome.storage.local.clear(() => {
+    loadAll();
+    const btn = document.querySelector('.cfg-btn.danger');
+    btn.textContent = '✓ Dados removidos';
+    setTimeout(() => { btn.textContent = '🗑 Resetar estatísticas'; }, 2000);
+  });
+}
+
+// ── Inicializa ───────────────────────────────────────────────────────────────
+loadAll();
 </script>
 </body>
 </html>

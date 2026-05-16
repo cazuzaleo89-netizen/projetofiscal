@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Painel Fiscal — Monitor TEC",
-  "short_name": "PainelFiscal",
-  "version": "1.0.0",
-  "description": "Integração automática entre TecConcursos e o Painel Fiscal. Captura acertos/erros, importa histórico e sincroniza cronômetro sem bookmarklet.",
+  "name": "Painel Fiscal — TEC Automator",
+  "short_name": "TEC Automator",
+  "version": "2.0.0",
+  "description": "Rastreia acertos/erros no TecConcursos, exibe grade visual de questões e envia erros para revisão com repetição espaçada (SM-2).",
   "permissions": [
     "storage",
     "notifications",
     "tabs",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "*://www.tecconcursos.com.br/*",

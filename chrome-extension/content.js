@@ -1,40 +1,57 @@
 /**
- * Painel Fiscal — Monitor TEC (Content Script)
- * Roda automaticamente em www.tecconcursos.com.br
- * Substitui o bookmarklet ⚡ — sem clique necessário.
+ * Painel Fiscal — TEC Automator v2.0
+ * Widget visual com grade de questões (estilo Base do Aprovado)
+ * Rastreia acertos/erros em tempo real e persiste localmente.
  */
-
 (function () {
   'use strict';
-
-  // Evita dupla injeção caso a extensão seja atualizada
-  if (window._pfExt) return;
-  window._pfExt = true;
+  if (window._pfTecAuto2) return;
+  window._pfTecAuto2 = true;
 
   const PANEL_URL = 'https://cazuzaleo89-netizen.github.io/projetofiscal/';
 
-  // ── Estado local ──────────────────────────────────────────────────────────
-  let _pfw = null;      // referência à aba/janela do painel
-  let A = 0, E = 0;
-  let _pfConnectTime = 0; // timestamp da conexão — usado para warmup de 3s
-  let _lastUrl = '';
-  let _pfEndSent = false;
-  let _pfDesempenhoOpen = false; // rastreia se painel "Desempenho nesta questão" está aberto
-  let _pfAutoFetchKey = '';     // dedup para autoFetchDesempenho (qid_A_E)
-  let _pfTextDetectKey = '';    // dedup para detecção por texto (fallback sem contador)
-  let _pfMin = false;
-  let _pfHiddenSince = 0;
-  let _pfFila = [];
-  let _pfStats = { elapsed: 0, acertos: 0, erros: 0, resolved: 0, running: false, paused: false, discName: '', dificuldade: '' };
-  let _pfLocalAce = 0, _pfLocalErr = 0; // contadores locais (não dependem do cronômetro)
-  let el = null; // widget badge
+  // ════════════════════════════════════════════════════════
+  // ESTADO
+  // ════════════════════════════════════════════════════════
+  const S = {
+    pfw: null,
+    A: 0, E: 0,                   // contadores TEC sincronizados
+    connectTime: Date.now(),
+    lastUrl: '',
+    endSent: false,
+    desempenhoOpen: false,
+    autoFetchKey: '',
+    textDetectKey: '',
+    hiddenSince: 0,
+    // Grade de questões
+    questions: [],                 // [{result,qid,url,materia,assunto,timeSpent}]
+    totalQ: 0,
+    currentQ: 0,                   // 1-based
+    caderno: '',
+    materia: '',
+    assunto: '',
+    // Contadores locais (não dependem do painel)
+    localAce: 0,
+    localErr: 0,
+    // Stats do painel (via postMessage)
+    stats: { elapsed: 0, acertos: 0, erros: 0, resolved: 0, running: false, paused: false, discName: '', dificuldade: '' },
+    // Fila de revisão
+    fila: [],
+    // UI
+    minimized: false,
+    // Tempo por questão
+    questionStart: Date.now(),
+  };
 
-  // ── Comunicação com painel ────────────────────────────────────────────────
+  let widgetEl = null;
+  let observer = null;
+
+  // ════════════════════════════════════════════════════════
+  // COMUNICAÇÃO COM PAINEL
+  // ════════════════════════════════════════════════════════
 
   function findPanelWindow() {
-    // Tenta via opener (usuário abriu TEC a partir do painel)
     if (window.opener && !window.opener.closed) return window.opener;
-    // Tenta via nome de janela (bookmarklet legacy compat)
     try { const w = window.open('', '_pfPanel'); if (w && !w.closed && w !== window) return w; } catch (x) { /* */ }
     return null;
   }
@@ -42,186 +59,414 @@
   function send(result, qi) {
     const msg = { type: 'TEC_QUESTION', result };
     if (qi) Object.assign(msg, qi);
-    // Tenta via janela salva
-    if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
-    }
-    // Refaz busca
-    _pfw = findPanelWindow();
-    if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
-    }
-    // Fallback: background relay via extension messaging
+    if (S.pfw && !S.pfw.closed) { try { S.pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ } }
+    S.pfw = findPanelWindow();
+    if (S.pfw && !S.pfw.closed) { try { S.pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ } }
     try { chrome.runtime.sendMessage({ type: 'RELAY_TO_PANEL', payload: msg }); return true; } catch (x) { /* */ }
     return false;
   }
 
   function sendRaw(msg) {
-    if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
-    }
-    _pfw = findPanelWindow();
-    if (_pfw && !_pfw.closed) {
-      try { _pfw.postMessage(msg, '*'); return true; } catch (x) { /* */ }
-    }
-    try { chrome.runtime.sendMessage({ type: 'RELAY_TO_PANEL', payload: msg }); return true; } catch (x) { /* */ }
-    return false;
+    if (S.pfw && !S.pfw.closed) { try { S.pfw.postMessage(msg, '*'); return; } catch (x) { /* */ } }
+    S.pfw = findPanelWindow();
+    if (S.pfw && !S.pfw.closed) { try { S.pfw.postMessage(msg, '*'); return; } catch (x) { /* */ } }
+    try { chrome.runtime.sendMessage({ type: 'RELAY_TO_PANEL', payload: msg }); } catch (x) { /* */ }
   }
 
-  // ── Parsers ───────────────────────────────────────────────────────────────
+  // Comunicação com background (armazenamento local)
+  function toBg(type, payload) {
+    try { chrome.runtime.sendMessage({ type, payload }); } catch (x) { /* */ }
+  }
 
-  function parse() {
+  // ════════════════════════════════════════════════════════
+  // PARSERS
+  // ════════════════════════════════════════════════════════
+
+  function parseCounter() {
     const tx = document.body.innerText || '';
     let m = tx.match(/(\d+)\s+Acertos?\s+e\s+(\d+)\s+Erros?/i);
     if (!m) m = tx.match(/Acertos?[:\s]+(\d+)[^\d]+Erros?[:\s]+(\d+)/i);
     return m ? { a: parseInt(m[1]), e: parseInt(m[2]) } : null;
   }
 
+  function parsePosition() {
+    const tx = document.body.innerText || '';
+    const m = tx.match(/Quest[aã]o\s+(\d+)\s+de\s+(\d+)/i);
+    return m ? { n: parseInt(m[1]), t: parseInt(m[2]) } : null;
+  }
+
   function getInfo() {
-    const info = { url: '', desc: '', materia: '', assunto: '', qid: '', myTotal: 0, myErrors: 0 };
+    const info = { url: '', desc: '', materia: '', assunto: '', qid: '', myTotal: 0, myErrors: 0, timeSpent: 0 };
     const tx = document.body.innerText || '';
 
-    // qid
-    let urlPM = window.location.pathname.match(/\/questoes\/(\d{5,9})(?:\/|$)/);
+    const urlPM = window.location.pathname.match(/\/questoes\/(\d{5,9})(?:\/|$)/);
     if (urlPM) { info.qid = urlPM[1]; info.url = 'https://www.tecconcursos.com.br/questoes/' + urlPM[1]; }
     if (!info.qid) {
       const links = document.querySelectorAll("a[href*='/questoes/']");
-      for (let i = 0; i < links.length; i++) {
-        const lm = links[i].href.match(/\/questoes\/(\d{5,9})/);
+      for (const l of links) {
+        const lm = l.href.match(/\/questoes\/(\d{5,9})/);
         if (lm) { info.qid = lm[1]; info.url = 'https://www.tecconcursos.com.br/questoes/' + lm[1]; break; }
       }
     }
     if (!info.qid) { const idM = tx.match(/#(\d{5,9})\b/); if (idM) { info.qid = idM[1]; info.url = 'https://www.tecconcursos.com.br/questoes/' + idM[1]; } }
-    if (!info.qid) { const qnM = tx.match(/Quest[aã]o[\s#]+(\d{5,9})\b/i); if (qnM) { info.qid = qnM[1]; info.url = 'https://www.tecconcursos.com.br/questoes/' + qnM[1]; } }
     if (!info.url) info.url = window.location.href;
 
-    // matéria / assunto
     const matM = tx.match(/Mat[eé]ria:\s*([^\n\r×]+)/i);
     if (matM) info.materia = matM[1].replace(/\s*[××].*$/, '').trim();
     const assM = tx.match(/Assunto:\s*([^\n\r×]+)/i);
     if (assM) info.assunto = assM[1].replace(/\s*[××].*$/, '').trim();
-
     const parts = [];
     if (info.materia) parts.push(info.materia);
     if (info.assunto) parts.push(info.assunto);
     info.desc = parts.join(' — ') || (info.qid ? 'Questão #' + info.qid : 'Questão');
 
-    // Meu Desempenho
     const myResM = tx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
     info.myTotal = myResM ? parseInt(myResM[1]) : 0;
+    const myErrArr = tx.match(/\bErrou\b/gi);
+    info.myErrors = myErrArr ? myErrArr.length : 0;
     const myErrNumM = tx.match(/(\d+)\s*(?:erros?\b|[x×]\s*errou)/i) || tx.match(/errou[\s:]+(\d+)/i);
-    if (myErrNumM) {
-      info.myErrors = parseInt(myErrNumM[1]);
-    } else {
-      const myErrArr = tx.match(/\bErrou\b/gi);
-      info.myErrors = myErrArr ? myErrArr.length : 0;
-    }
+    if (myErrNumM) { const ne = parseInt(myErrNumM[1]); if (ne > info.myErrors) info.myErrors = ne; }
+
+    info.timeSpent = Math.round((Date.now() - S.questionStart) / 1000);
     return info;
   }
 
-  function sendSession() {
-    const tx = document.body.innerText || '';
-    const totM = tx.match(/Quest[aã]o\s+\d+\s+de\s+(\d+)/i);
-    const total = totM ? parseInt(totM[1]) : 0;
-    const matM = tx.match(/Mat[eé]ria:\s*([^\n\r×]+)/i);
-    const materia = matM ? matM[1].replace(/\s*[××].*$/, '').trim() : '';
-    const assM = tx.match(/Assunto:\s*([^\n\r×]+)/i);
-    const assunto = assM ? assM[1].replace(/\s*[××].*$/, '').trim() : '';
-    const caderno = document.title.replace(/\s*[|·\-]\s*TecConcursos.*$/i, '').trim() || materia;
-    const sp = new URLSearchParams(window.location.search);
-    send('session_info', { total, materia, assunto, caderno, cadernoBase: sp.get('cadernoBase') || '', idPasta: sp.get('idPasta') || '' });
+  // ════════════════════════════════════════════════════════
+  // GRADE DE QUESTÕES
+  // ════════════════════════════════════════════════════════
+
+  function ensureQuestions(total) {
+    if (!total || total <= 0) return;
+    S.totalQ = total;
+    while (S.questions.length < total) {
+      S.questions.push({ result: null, qid: '', url: '', materia: '', assunto: '', timeSpent: 0 });
+    }
   }
 
-  function scanHistory() {
-    const tx = document.body.innerText || '';
-    if (!window.location.pathname.match(/\/questoes\/(\d{5,9})(?:\/|$)/)) return;
-    const myResM = tx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
-    const myTotal = myResM ? parseInt(myResM[1]) : 0;
-    let myErrors = 0;
-    const myErrArr = tx.match(/\bErrou\b/gi);
-    myErrors = myErrArr ? myErrArr.length : 0;
-    const myErrNumM = tx.match(/(\d+)\s*(?:erros?\b|[x×]\s*errou)/i) || tx.match(/errou[\s:]+(\d+)/i);
-    if (myErrNumM) { const ne = parseInt(myErrNumM[1]); if (ne > myErrors) myErrors = ne; }
-    if (myErrors <= 0) return;
-    const qi = getInfo();
-    if (!qi.qid) return;
-    qi.myErrors = myErrors; qi.myTotal = myTotal;
-    send('wrong_import', qi);
+  function setQuestionResult(pos, result, qi) {
+    if (!pos || pos < 1) return;
+    ensureQuestions(Math.max(S.totalQ, pos));
+    const q = S.questions[pos - 1];
+    q.result = result;
+    if (qi) {
+      if (qi.qid) q.qid = qi.qid;
+      if (qi.url) q.url = qi.url;
+      if (qi.materia) q.materia = qi.materia;
+      if (qi.assunto) q.assunto = qi.assunto;
+      if (qi.timeSpent) q.timeSpent = qi.timeSpent;
+    }
   }
+
+  // ════════════════════════════════════════════════════════
+  // ESTILOS DO WIDGET
+  // ════════════════════════════════════════════════════════
+
+  function injectStyles() {
+    if (document.getElementById('_pfStyles2')) return;
+    const st = document.createElement('style');
+    st.id = '_pfStyles2';
+    st.textContent = `
+      @keyframes _pfSlide2{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes _pfPop{0%{transform:scale(.7)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+      @keyframes _pfPulse2{0%,100%{opacity:1}50%{opacity:.5}}
+
+      #_pfWidget2{
+        position:fixed;bottom:20px;right:20px;z-index:2147483647;
+        width:316px;
+        background:#1a1d2e;
+        border-radius:13px;
+        border:1px solid rgba(255,255,255,.09);
+        box-shadow:0 24px 70px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.04) inset;
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+        color:#e2e8f0;overflow:hidden;user-select:none;
+        animation:_pfSlide2 .32s cubic-bezier(.16,1,.3,1);
+      }
+      #_pfWidget2 *{box-sizing:border-box;}
+
+      /* ── Header ── */
+      ._pf2h{
+        display:flex;align-items:center;gap:8px;
+        padding:10px 12px;
+        background:linear-gradient(135deg,#252a40,#1e2338);
+        border-bottom:1px solid rgba(255,255,255,.07);
+        min-height:42px;
+      }
+      ._pf2logo{
+        width:26px;height:26px;background:#f59e0b;border-radius:6px;
+        display:flex;align-items:center;justify-content:center;
+        font-size:14px;flex-shrink:0;font-weight:900;
+      }
+      ._pf2title{flex:1;font-size:13px;font-weight:700;color:#e2e8f0;letter-spacing:.3px;}
+      ._pf2hbtn{
+        width:22px;height:22px;border:none;cursor:pointer;
+        border-radius:5px;background:rgba(255,255,255,.07);
+        color:#94a3b8;font-size:13px;line-height:1;padding:0;
+        display:flex;align-items:center;justify-content:center;
+        transition:background .15s,color .15s;flex-shrink:0;
+      }
+      ._pf2hbtn:hover{background:rgba(255,255,255,.14);color:#e2e8f0;}
+
+      /* ── Body ── */
+      ._pf2body{padding:11px 12px;}
+
+      ._pf2session{
+        font-size:12.5px;font-weight:700;color:#c7d2fe;
+        margin-bottom:5px;line-height:1.35;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      }
+
+      ._pf2stats{
+        display:flex;align-items:center;gap:7px;
+        font-size:11px;color:#64748b;margin-bottom:9px;
+      }
+      ._pf2stats .qtotal{color:#94a3b8;}
+      ._pf2stats .qcerto{color:#22c55e;font-weight:700;}
+      ._pf2stats .qreforco{color:#f59e0b;font-weight:700;}
+      ._pf2syncbtn{
+        margin-left:auto;width:20px;height:20px;border:none;cursor:pointer;
+        background:rgba(255,255,255,.06);border-radius:50%;
+        color:#64748b;font-size:12px;
+        display:flex;align-items:center;justify-content:center;
+        transition:all .3s;border:1px solid rgba(255,255,255,.06);
+      }
+      ._pf2syncbtn:hover{background:rgba(255,255,255,.12);color:#94a3b8;transform:rotate(180deg);}
+
+      /* Barra de precisão */
+      ._pf2bar{height:3px;background:#2a2f47;border-radius:2px;margin-bottom:9px;overflow:hidden;}
+      ._pf2barfill{height:100%;background:linear-gradient(90deg,#22c55e,#4ade80);border-radius:2px;transition:width .5s cubic-bezier(.16,1,.3,1);}
+
+      ._pf2pos{font-size:11px;color:#6366f1;font-weight:700;margin-bottom:8px;letter-spacing:.3px;}
+
+      /* ── Grade de círculos ── */
+      ._pf2grid{
+        display:grid;
+        grid-template-columns:repeat(9,1fr);
+        gap:4px;
+        margin-bottom:11px;
+      }
+      ._pf2c{
+        width:100%;aspect-ratio:1;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;
+        font-size:9.5px;font-weight:800;cursor:pointer;
+        border:2px solid transparent;
+        transition:transform .15s,box-shadow .15s,border-color .2s;
+        position:relative;
+      }
+      ._pf2c:hover{transform:scale(1.15);z-index:2;}
+      ._pf2c.pending{background:#252a42;color:#4b5563;border-color:#2f3555;}
+      ._pf2c.correct{background:#15803d;color:#fff;border-color:#22c55e;animation:_pfPop .25s ease;}
+      ._pf2c.wrong{background:#b91c1c;color:#fff;border-color:#ef4444;animation:_pfPop .25s ease;}
+      ._pf2c.current.pending{background:#2a2640;border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.2);color:#f59e0b;}
+      ._pf2c.current.correct{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.2);}
+      ._pf2c.current.wrong{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.2);}
+
+      /* ── Fila de revisão (mini banner) ── */
+      ._pf2fila{
+        display:flex;align-items:center;gap:7px;
+        background:rgba(239,68,68,.09);
+        border:1px solid rgba(239,68,68,.2);
+        border-radius:8px;padding:6px 10px;
+        margin-bottom:10px;cursor:pointer;
+        transition:background .15s;
+      }
+      ._pf2fila:hover{background:rgba(239,68,68,.15);}
+      ._pf2filadot{width:5px;height:5px;border-radius:50%;background:#ef4444;flex-shrink:0;animation:_pfPulse2 1.2s ease infinite;}
+      ._pf2filatxt{flex:1;font-size:10.5px;color:#fca5a5;font-weight:700;}
+      ._pf2filakbd{font-size:8px;color:#64748b;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);padding:1px 5px;border-radius:3px;font-family:monospace;}
+
+      /* ── Navegação ── */
+      ._pf2nav{display:flex;gap:7px;border-top:1px solid rgba(255,255,255,.06);padding-top:10px;}
+      ._pf2navbtn{
+        flex:1;padding:8px 4px;border:1px solid rgba(255,255,255,.09);
+        background:#20243a;color:#94a3b8;border-radius:8px;
+        font-size:12px;font-weight:700;cursor:pointer;
+        transition:all .15s;
+      }
+      ._pf2navbtn:hover{background:#272c47;color:#e2e8f0;border-color:rgba(255,255,255,.18);}
+      ._pf2navbtn.primary{background:#4f46e5;border-color:#6366f1;color:#fff;}
+      ._pf2navbtn.primary:hover{background:#4338ca;border-color:#818cf8;}
+
+      /* ── Estado minimizado ── */
+      #_pfWidget2.pf2-min{
+        width:auto;border-radius:50px;cursor:pointer;
+      }
+      #_pfWidget2.pf2-min ._pf2body{display:none;}
+      #_pfWidget2.pf2-min ._pf2h{
+        border-radius:50px;border:none;padding:8px 14px;gap:10px;
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  // ════════════════════════════════════════════════════════
+  // RENDERIZAÇÃO DO WIDGET
+  // ════════════════════════════════════════════════════════
+
+  function renderWidget() {
+    if (!widgetEl) return;
+    injectStyles();
+
+    if (S.minimized) {
+      widgetEl.className = 'pf2-min';
+      widgetEl.innerHTML = `
+        <div class="_pf2h">
+          <div class="_pf2logo">≡</div>
+          <div class="_pf2title">Painel Fiscal</div>
+          <span style="font-size:11px;color:#22c55e;font-weight:700;">✓${S.localAce}</span>
+          <span style="font-size:11px;color:#ef4444;font-weight:700;">✕${S.localErr}</span>
+        </div>`;
+      widgetEl.onclick = () => { S.minimized = false; renderWidget(); };
+      return;
+    }
+
+    widgetEl.className = '';
+    widgetEl.onclick = null;
+
+    const pos = parsePosition();
+    const curQ = pos ? pos.n : S.currentQ;
+    const totalQ = pos ? pos.t : (S.totalQ || 0);
+    if (totalQ > 0) ensureQuestions(totalQ);
+
+    const answered = S.questions.filter(q => q.result !== null).length;
+    const correct  = S.questions.filter(q => q.result === 'correct').length;
+    const reforco  = S.questions.filter(q => q.result === 'wrong').length;
+    const pct      = answered > 0 ? Math.round(correct / answered * 100) : 0;
+
+    const caderno = S.caderno || S.materia || document.title.replace(/\s*[|·\-]\s*TecConcursos.*$/i, '').trim() || 'Sessão TEC';
+    const shortCaderno = caderno.length > 36 ? caderno.slice(0, 34) + '…' : caderno;
+
+    // Monta círculos
+    const showTotal = Math.max(totalQ, S.questions.length, 1);
+    let circlesHtml = '';
+    for (let i = 0; i < showTotal; i++) {
+      const q = S.questions[i] || { result: null };
+      const num = i + 1;
+      const isCurrent = num === curQ;
+      let cls = 'pending';
+      let label = num;
+      if (q.result === 'correct') { cls = 'correct'; label = '✓'; }
+      else if (q.result === 'wrong') { cls = 'wrong'; label = '✕'; }
+      if (isCurrent) cls += ' current';
+      const url = q.url ? `data-url="${q.url}"` : '';
+      circlesHtml += `<div class="_pf2c ${cls}" data-n="${num}" ${url} title="Q${num}${q.materia ? ' · ' + q.materia : ''}">${label}</div>`;
+    }
+
+    // Banner de fila
+    const filaBanner = S.fila.length > 0 ? `
+      <div class="_pf2fila" id="_pf2filarow">
+        <div class="_pf2filadot"></div>
+        <span class="_pf2filatxt">${S.fila.length} revisão${S.fila.length > 1 ? 'ões' : ''} pendente${S.fila.length > 1 ? 's' : ''}</span>
+        <kbd class="_pf2filakbd">Alt+R</kbd>
+      </div>` : '';
+
+    widgetEl.innerHTML = `
+      <div class="_pf2h">
+        <div class="_pf2logo">≡</div>
+        <div class="_pf2title">Painel Fiscal</div>
+        <button class="_pf2hbtn" id="_pf2min" title="Minimizar">−</button>
+        <button class="_pf2hbtn" id="_pf2x" title="Fechar">×</button>
+      </div>
+      <div class="_pf2body">
+        <div class="_pf2session">${shortCaderno}</div>
+        <div class="_pf2stats">
+          <span class="qtotal">${showTotal} questões</span>
+          <span class="qcerto">✓ ${correct}/${answered}</span>
+          ${reforco > 0 ? `<span class="qreforco">+${reforco} reforço</span>` : ''}
+          <button class="_pf2syncbtn" id="_pf2sync" title="Sincronizar com painel">↺</button>
+        </div>
+        ${answered > 0 ? `<div class="_pf2bar"><div class="_pf2barfill" style="width:${pct}%"></div></div>` : ''}
+        <div class="_pf2pos">◆ ${curQ || '?'}/${showTotal || '?'}</div>
+        <div class="_pf2grid">${circlesHtml}</div>
+        ${filaBanner}
+        <div class="_pf2nav">
+          <button class="_pf2navbtn" id="_pf2ant">← Ant</button>
+          <button class="_pf2navbtn primary" id="_pf2prox">Prox →</button>
+        </div>
+      </div>`;
+
+    // — Eventos dos botões
+    document.getElementById('_pf2min').onclick = ev => { ev.stopPropagation(); S.minimized = true; renderWidget(); };
+    document.getElementById('_pf2x').onclick = ev => {
+      ev.stopPropagation();
+      if (confirm('Remover widget do Painel Fiscal?')) {
+        if (observer) observer.disconnect();
+        widgetEl.remove(); widgetEl = null; window._pfTecAuto2 = false;
+      }
+    };
+    document.getElementById('_pf2sync').onclick = ev => {
+      ev.stopPropagation();
+      toBg('GET_FILA', {});
+      send('ping', null);
+    };
+
+    // Navegação: clica nos botões do TEC
+    const navClick = selector => ev => {
+      ev.stopPropagation();
+      const btn = document.querySelector(selector);
+      if (btn) { btn.click(); return; }
+      const all = document.querySelectorAll('button');
+      const re = selector.includes('ant') ? /ant|anterior|voltar|prev/i : /pr[oó]x|próximo|next|seguinte/i;
+      for (const b of all) { if (re.test(b.textContent || '') && b.offsetParent) { b.click(); return; } }
+    };
+    document.getElementById('_pf2ant').onclick = navClick('[class*="anterior"],[aria-label*="Anterior"]');
+    document.getElementById('_pf2prox').onclick = navClick('[class*="proxim"],[aria-label*="Próxima"]');
+
+    // Clique em círculo → abre questão
+    widgetEl.querySelectorAll('._pf2c[data-url]').forEach(c => {
+      if (c.getAttribute('data-url')) {
+        c.addEventListener('click', ev => { ev.stopPropagation(); window.open(c.getAttribute('data-url'), '_self'); });
+      }
+    });
+
+    // Banner de fila
+    const filaRow = document.getElementById('_pf2filarow');
+    if (filaRow && S.fila[0]) filaRow.onclick = () => window.open(S.fila[0].link || S.fila[0].url, '_self');
+  }
+
+  // ════════════════════════════════════════════════════════
+  // SCANNING
+  // ════════════════════════════════════════════════════════
 
   function scanDesempenho() {
     const tx = document.body.innerText || '';
     if (!tx.includes('Meu Desempenho')) return;
     const qi = getInfo();
     if (!qi.qid) return;
-
-    // Divide o texto para isolar seção "Meu Desempenho" (pessoal) do resto
     const meuIdx = tx.indexOf('Meu Desempenho');
     const globalTx = meuIdx >= 0 ? tx.slice(0, meuIdx) : tx;
-    const myTx     = meuIdx >= 0 ? tx.slice(meuIdx)    : '';
-
-    // ── Meu Desempenho ───────────────────────────────────────────────────────
+    const myTx = meuIdx >= 0 ? tx.slice(meuIdx) : '';
     const errouArr = myTx.match(/\bErrou\b/gi);
     let myErrors = errouArr ? errouArr.length : 0;
     const myErrNumM = myTx.match(/(\d+)\s*(?:erros?\b|[x×]\s*errou)/i);
     if (myErrNumM) { const ne = parseInt(myErrNumM[1]); if (ne > myErrors) myErrors = ne; }
     const myResM = myTx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
     const myTotal = myResM ? parseInt(myResM[1]) : 0;
-
-    // ── Dificuldade (do Desempenho Geral) ────────────────────────────────────
     const difM = globalTx.match(/Dificuldade:\s*([^\n\r]+)/i);
     const dificuldade = difM ? difM[1].trim() : '';
-
-    qi.myErrors    = myErrors;
-    qi.myTotal     = myTotal;
-    qi.dificuldade = dificuldade;
-
-    // Atualiza widget imediatamente com a dificuldade
-    if (dificuldade && _pfStats.dificuldade !== dificuldade) {
-      _pfStats.dificuldade = dificuldade;
-      pfRenderWidget();
-    }
-
+    qi.myErrors = myErrors; qi.myTotal = myTotal; qi.dificuldade = dificuldade;
+    if (dificuldade && S.stats.dificuldade !== dificuldade) { S.stats.dificuldade = dificuldade; renderWidget(); }
     send('desempenho_detail', qi);
   }
 
-  // Tenta ler dados de desempenho do DOM. Se não disponíveis, abre a seção programaticamente.
   function autoFetchDesempenho(snapQid) {
     const qi = getInfo();
-    if (snapQid && qi.qid && qi.qid !== snapQid) return; // navegou para outra questão
-
-    // Dedup: não reprocessar o mesmo estado de resposta
-    const dKey = (qi.qid || window.location.href) + '_' + A + '_' + E;
-    if (_pfAutoFetchKey === dKey) return;
-
+    if (snapQid && qi.qid && qi.qid !== snapQid) return;
+    const dKey = (qi.qid || window.location.href) + '_' + S.A + '_' + S.E;
+    if (S.autoFetchKey === dKey) return;
     const tx = document.body.innerText || '';
     const meuIdx = tx.indexOf('Meu Desempenho');
     const myTx = meuIdx >= 0 ? tx.slice(meuIdx) : '';
-    // Dados disponíveis se há histórico pessoal (Acertou/Errou ou Total de resoluções)
-    const hasData = meuIdx >= 0 &&
-      (myTx.includes('Total de resolu') || myTx.includes('Errou') || myTx.includes('Acertou'));
-
-    if (hasData) {
-      _pfAutoFetchKey = dKey;
-      scanDesempenho();
-      return;
-    }
-
-    // Dados não carregados: abre seção "Desempenho nesta questão" programaticamente
-    const clickables = document.querySelectorAll('button, [role="button"]');
-    for (const el of clickables) {
-      const t = (el.textContent || '').trim();
+    const hasData = meuIdx >= 0 && (myTx.includes('Total de resolu') || myTx.includes('Errou') || myTx.includes('Acertou'));
+    if (hasData) { S.autoFetchKey = dKey; scanDesempenho(); return; }
+    const clickables = document.querySelectorAll('button,[role="button"]');
+    for (const btn of clickables) {
+      const t = (btn.textContent || '').trim();
       if (/desempenho/i.test(t) && !/fechar|esconder/i.test(t) && t.length < 80) {
-        _pfAutoFetchKey = dKey;
-        el.click();
+        S.autoFetchKey = dKey; btn.click();
         setTimeout(() => {
           scanDesempenho();
-          // Fecha o painel após leitura para não interferir no fluxo
           setTimeout(() => {
-            const btns = document.querySelectorAll('button');
-            for (const b of btns) {
-              if (/fechar/i.test(b.textContent || '')) { b.click(); break; }
-            }
+            for (const b of document.querySelectorAll('button')) { if (/fechar/i.test(b.textContent || '')) { b.click(); break; } }
           }, 350);
         }, 750);
         break;
@@ -229,447 +474,293 @@
     }
   }
 
-  function checkCadernoEnd() {
-    if (_pfEndSent) return;
+  function scanHistory() {
     const tx = document.body.innerText || '';
-    const qm = tx.match(/Quest[aã]o\s+(\d+)\s+de\s+(\d+)/i);
-    if (!qm) return;
-    const n = parseInt(qm[1]), t = parseInt(qm[2]);
-    if (n === t && t > 0) {
-      const s = parse();
-      const done = s ? (s.a + s.e) : 0;
-      if (done >= t) {
-        _pfEndSent = true;
-        setTimeout(() => {
-          sendRaw({ type: 'TEC_CADERNO_END', stats: { total: t, correct: s ? s.a : 0, wrong: s ? s.e : 0, elapsed: _pfStats.elapsed || 0 } });
-        }, 2500);
-      }
+    if (!window.location.pathname.match(/\/questoes\/(\d{5,9})(?:\/|$)/)) return;
+    let myErrors = 0;
+    const myErrArr = tx.match(/\bErrou\b/gi);
+    myErrors = myErrArr ? myErrArr.length : 0;
+    const myErrNumM = tx.match(/(\d+)\s*(?:erros?\b|[x×]\s*errou)/i) || tx.match(/errou[\s:]+(\d+)/i);
+    if (myErrNumM) { const ne = parseInt(myErrNumM[1]); if (ne > myErrors) myErrors = ne; }
+    if (myErrors <= 0) return;
+    const myResM = tx.match(/Total de resolu[çc][õo]es[:\s]+(\d+)/i);
+    const qi = getInfo();
+    if (!qi.qid) return;
+    qi.myErrors = myErrors; qi.myTotal = myResM ? parseInt(myResM[1]) : 0;
+    send('wrong_import', qi);
+  }
+
+  function checkCadernoEnd() {
+    if (S.endSent) return;
+    const pos = parsePosition();
+    if (!pos || pos.n !== pos.t || pos.t <= 0) return;
+    const counter = parseCounter();
+    const done = counter ? (counter.a + counter.e) : 0;
+    if (done >= pos.t) {
+      S.endSent = true;
+      setTimeout(() => {
+        const stats = { total: pos.t, correct: counter ? counter.a : 0, wrong: counter ? counter.e : 0, elapsed: S.stats.elapsed || 0 };
+        sendRaw({ type: 'TEC_CADERNO_END', stats });
+        toBg('SESSION_END', { stats, questions: S.questions, caderno: S.caderno });
+      }, 2500);
     }
   }
 
+  // ════════════════════════════════════════════════════════
+  // LOOP PRINCIPAL (MutationObserver)
+  // ════════════════════════════════════════════════════════
+
   function check() {
     const cu = window.location.href;
-    if (cu !== _lastUrl) {
-      _lastUrl = cu;
-      _pfEndSent = false;
-      _pfDesempenhoOpen = false;
-      _pfTextDetectKey = '';
+
+    // Mudança de URL = nova questão
+    if (cu !== S.lastUrl) {
+      S.lastUrl = cu;
+      S.endSent = false;
+      S.desempenhoOpen = false;
+      S.textDetectKey = '';
+      S.questionStart = Date.now();
+
+      const pos2 = parsePosition();
+      if (pos2) { S.currentQ = pos2.n; ensureQuestions(pos2.t); }
+
+      const title = document.title.replace(/\s*[|·\-]\s*TecConcursos.*$/i, '').trim();
+      if (title && !S.caderno) S.caderno = title;
+
       setTimeout(scanHistory, 1200);
       setTimeout(checkCadernoEnd, 1500);
+      renderWidget();
     }
+
     const tx0 = document.body.innerText || '';
 
-    // Detecta abertura do painel "Desempenho nesta questão" (usuário abre manualmente)
-    const isDesempenhoOpen = tx0.includes('Meu Desempenho') && tx0.includes('Desempenho Geral');
-    if (isDesempenhoOpen && !_pfDesempenhoOpen) {
-      _pfDesempenhoOpen = true;
-      setTimeout(scanDesempenho, 400);
-    } else if (!isDesempenhoOpen) {
-      _pfDesempenhoOpen = false;
-    }
+    // Atualiza posição
+    const pos = parsePosition();
+    if (pos && pos.n !== S.currentQ) { S.currentQ = pos.n; ensureQuestions(pos.t); renderWidget(); }
 
-    const s = parse();
-    const warmup = Date.now() - _pfConnectTime < 3000;
+    // Painel Desempenho abriu?
+    const desempOpen = tx0.includes('Meu Desempenho') && tx0.includes('Desempenho Geral');
+    if (desempOpen && !S.desempenhoOpen) { S.desempenhoOpen = true; setTimeout(scanDesempenho, 400); }
+    else if (!desempOpen) S.desempenhoOpen = false;
 
-    // ── Fallback: detecção por texto quando não há contador "X Acertos e Y Erros" ──
-    // Usado em questões avulsas ou cadernos que não exibem o contador no DOM.
-    if (!s) {
+    const counter = parseCounter();
+    const warmup = Date.now() - S.connectTime < 3000;
+
+    // ── Fallback: detecção por texto ──
+    if (!counter) {
       const hasAcertou = /você acertou|acertou!\s*mandou/i.test(tx0);
       const hasErrou   = /você errou/i.test(tx0);
       if ((hasAcertou || hasErrou) && !warmup) {
-        const qi  = getInfo();
+        const qi = getInfo();
         const key = (qi.qid || cu) + '_' + (hasAcertou ? 'c' : 'e');
-        if (key !== _pfTextDetectKey) {
-          _pfTextDetectKey = key;
-          _pfDesempenhoOpen = false;
-          const _snapQid = qi.qid;
+        if (key !== S.textDetectKey) {
+          S.textDetectKey = key;
+          S.desempenhoOpen = false;
+          const snapQid = qi.qid;
+          const curPos = pos ? pos.n : S.currentQ;
+
           if (hasAcertou) {
-            _pfLocalAce++;
-            _pfStats.acertos = Math.max(_pfStats.acertos, _pfLocalAce);
-            _pfStats.resolved = _pfLocalAce + _pfLocalErr;
-            pfRenderWidget();
+            S.localAce++;
+            S.stats.acertos = Math.max(S.stats.acertos, S.localAce);
+            S.stats.resolved = S.localAce + S.localErr;
+            setQuestionResult(curPos, 'correct', qi);
+            renderWidget();
             send('correct', null);
+            toBg('QUESTION_CORRECT', { qid: qi.qid, url: qi.url, materia: qi.materia, assunto: qi.assunto, timeSpent: qi.timeSpent, pos: curPos, timestamp: Date.now() });
           } else {
-            _pfLocalErr++;
-            _pfStats.erros = Math.max(_pfStats.erros, _pfLocalErr);
-            _pfStats.resolved = _pfLocalAce + _pfLocalErr;
-            pfRenderWidget();
+            S.localErr++;
+            S.stats.erros = Math.max(S.stats.erros, S.localErr);
+            S.stats.resolved = S.localAce + S.localErr;
+            setQuestionResult(curPos, 'wrong', qi);
+            renderWidget();
             send('wrong_fast', qi);
+            toBg('QUESTION_WRONG', { qid: qi.qid, url: qi.url, materia: qi.materia, assunto: qi.assunto, desc: qi.desc, timeSpent: qi.timeSpent, pos: curPos, timestamp: Date.now() });
             setTimeout(() => {
               const qi2 = getInfo();
-              if (_snapQid && qi2.qid !== _snapQid) { qi2.qid = _snapQid; qi2.url = qi.url; qi2.desc = qi.desc; qi2.materia = qi.materia; qi2.assunto = qi.assunto; }
+              if (snapQid && qi2.qid !== snapQid) { qi2.qid = snapQid; qi2.url = qi.url; qi2.desc = qi.desc; qi2.materia = qi.materia; qi2.assunto = qi.assunto; }
               send('wrong', qi2);
             }, 500);
           }
-          setTimeout(() => autoFetchDesempenho(_snapQid), 1500);
-          setTimeout(() => autoFetchDesempenho(_snapQid), 4000);
+
+          setTimeout(() => autoFetchDesempenho(snapQid), 1500);
+          setTimeout(() => autoFetchDesempenho(snapQid), 4000);
           setTimeout(checkCadernoEnd, 800);
         }
       } else if (!hasAcertou && !hasErrou) {
-        // Resultado sumiu do DOM (usuário clicou Próxima) — reseta para detectar nova resposta
-        _pfTextDetectKey = '';
+        S.textDetectKey = '';
       }
       return;
     }
 
-    // ── Primary: contador "X Acertos e Y Erros" presente ──
-    const da = s.a - A, de = s.e - E;
-    if (warmup) { if (da > 0) A = s.a; if (de > 0) E = s.e; return; }
-    if (da > 0) { _pfLocalAce += da; _pfStats.acertos = Math.max(_pfStats.acertos, _pfLocalAce); _pfStats.resolved = _pfLocalAce + _pfLocalErr; for (let i = 0; i < da; i++) send('correct', null); A = s.a; pfRenderWidget(); }
+    // ── Primário: contador "X Acertos e Y Erros" ──
+    const da = counter.a - S.A;
+    const de = counter.e - S.E;
+    if (warmup) { if (da > 0) S.A = counter.a; if (de > 0) S.E = counter.e; return; }
+
+    const curPos = pos ? pos.n : S.currentQ;
+
+    if (da > 0) {
+      S.localAce += da;
+      S.stats.acertos = Math.max(S.stats.acertos, S.localAce);
+      S.stats.resolved = S.localAce + S.localErr;
+      setQuestionResult(curPos, 'correct', getInfo());
+      for (let i = 0; i < da; i++) send('correct', null);
+      S.A = counter.a;
+      toBg('QUESTION_CORRECT', { pos: curPos, timestamp: Date.now() });
+      renderWidget();
+    }
+
     if (da > 0 || de > 0) {
-      _pfDesempenhoOpen = false;
-      const _snapQidD = getInfo().qid;
-      // Marca como enviado via counter para evitar re-envio via fallback de texto
-      _pfTextDetectKey = (_snapQidD || cu) + '_' + (da > 0 ? 'c' : 'e');
-      setTimeout(() => autoFetchDesempenho(_snapQidD), 1500);
-      setTimeout(() => autoFetchDesempenho(_snapQidD), 4000);
+      S.desempenhoOpen = false;
+      const snapQidD = getInfo().qid;
+      S.textDetectKey = (snapQidD || cu) + '_' + (da > 0 ? 'c' : 'e');
+      setTimeout(() => autoFetchDesempenho(snapQidD), 1500);
+      setTimeout(() => autoFetchDesempenho(snapQidD), 4000);
     }
     if (da > 0 || de > 0) setTimeout(checkCadernoEnd, 800);
+
     if (de > 0) {
-      const _de = de; E = s.e;
-      const _qi0 = getInfo();
-      send('wrong_fast', _qi0);
+      const deCount = de; S.E = counter.e;
+      const qi0 = getInfo();
+      S.localErr += deCount;
+      S.stats.erros = Math.max(S.stats.erros, S.localErr);
+      S.stats.resolved = S.localAce + S.localErr;
+      setQuestionResult(curPos, 'wrong', qi0);
+      renderWidget();
+      send('wrong_fast', qi0);
+      toBg('QUESTION_WRONG', { qid: qi0.qid, url: qi0.url, materia: qi0.materia, assunto: qi0.assunto, desc: qi0.desc, timeSpent: qi0.timeSpent, pos: curPos, timestamp: Date.now() });
       setTimeout(() => {
         const qi = getInfo();
-        if (_qi0.qid && (!qi.qid || qi.qid !== _qi0.qid)) {
-          qi.url = _qi0.url; qi.qid = _qi0.qid;
-          qi.desc = _qi0.desc || qi.desc; qi.materia = _qi0.materia || qi.materia; qi.assunto = _qi0.assunto || qi.assunto;
-        }
-        for (let i = 0; i < _de; i++) send('wrong', qi);
+        if (qi0.qid && (!qi.qid || qi.qid !== qi0.qid)) { qi.url = qi0.url; qi.qid = qi0.qid; qi.desc = qi0.desc || qi.desc; qi.materia = qi0.materia || qi.materia; qi.assunto = qi0.assunto || qi.assunto; }
+        for (let i = 0; i < deCount; i++) send('wrong', qi);
         if (!qi.myErrors) {
           const _u = qi.url, _q = qi.qid;
-          setTimeout(() => {
-            const q2 = getInfo();
-            q2.url = _u; q2.qid = _q;
-            if (q2.myErrors > 0) send('wrong_update', q2);
-          }, 2500);
+          setTimeout(() => { const q2 = getInfo(); q2.url = _u; q2.qid = _q; if (q2.myErrors > 0) send('wrong_update', q2); }, 2500);
         }
       }, 500);
     }
   }
 
-  // ── Widget ────────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════
+  // LISTENERS DE MENSAGENS
+  // ════════════════════════════════════════════════════════
 
-  let _pfExpanded = false;
-
-  // Injeta keyframes CSS uma vez
-  function pfInjectStyles() {
-    if (document.getElementById('_pfStyles')) return;
-    const s = document.createElement('style');
-    s.id = '_pfStyles';
-    s.textContent = `
-    @keyframes _pfPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.8)}}
-    @keyframes _pfGlow{0%,100%{box-shadow:0 0 0 1px rgba(99,102,241,.3),0 8px 32px rgba(0,0,0,.7)}50%{box-shadow:0 0 0 1px rgba(99,102,241,.6),0 8px 40px rgba(99,102,241,.25),0 0 20px rgba(99,102,241,.15)}}
-    @keyframes _pfSlideUp{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-    #_pfBadge{animation:_pfSlideUp .35s cubic-bezier(.16,1,.3,1);}
-    #_pfBadge *{box-sizing:border-box;}
-    ._pf-s{transition:transform .15s;}
-    ._pf-s:hover{transform:scale(1.05);}
-    ._pf-mb:hover{background:rgba(255,255,255,.12)!important;color:#e2e8f0!important;}
-  `;
-    document.head.appendChild(s);
-  }
-
-  function pfFmt(s) {
-    if (!s || s < 0) s = 0;
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sc = s % 60;
-    if (h > 0) return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
-    return `${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
-  }
-
-  function pfRenderWidget() {
-    if (!el) return;
-    pfInjectStyles();
-
-    const s = _pfStats;
-    const total = s.acertos + s.erros;
-    const resolved = s.resolved || total;
-    const pct = total > 0 ? Math.round(s.acertos / total * 100) : null;
-    const isRunning = s.running && !s.paused;
-    const statusLabel = s.paused ? 'PAUSADO' : isRunning ? 'EM ANDAMENTO' : 'PAINEL FISCAL';
-    const statusColor = s.paused ? '#f59e0b' : isRunning ? '#34d399' : '#818cf8';
-    const dotColor    = s.paused ? '#f59e0b' : isRunning ? '#10b981' : '#4f46e5';
-
-    // dificuldade
-    const difMap = {
-      'muito fácil': ['#10b981','rgba(16,185,129,.15)','⬇'],
-      'fácil':       ['#34d399','rgba(52,211,153,.12)', '↙'],
-      'médio':       ['#f59e0b','rgba(245,158,11,.15)', '→'],
-      'difícil':     ['#f97316','rgba(249,115,22,.15)', '↗'],
-      'muito difícil':['#ef4444','rgba(239,68,68,.15)',  '⬆'],
-    };
-    const difKey = (s.dificuldade || '').toLowerCase().trim();
-    const [difColor, difBg, difArrow] = difMap[difKey] || ['#6366f1','rgba(99,102,241,.1)','●'];
-
-    // ── MINIMIZADO ──────────────────────────────────────────────────────────────
-    if (_pfMin) {
-      el.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:2147483647;cursor:pointer;
-      background:linear-gradient(145deg,#1e1b4b,#0f172a);
-      border-radius:50%;width:46px;height:46px;
-      display:flex;align-items:center;justify-content:center;
-      font-family:sans-serif;user-select:none;
-      transition:all .25s cubic-bezier(.16,1,.3,1);
-      ${isRunning ? 'animation:_pfGlow 3s ease infinite;' : 'box-shadow:0 0 0 1px rgba(99,102,241,.3),0 8px 32px rgba(0,0,0,.7);'}`;
-      const badge = _pfFila.length > 0
-        ? `<span style="position:absolute;top:-2px;right:-2px;background:#ef4444;color:#fff;border-radius:8px;padding:0 5px;font-size:8px;font-weight:800;min-width:14px;text-align:center;line-height:14px;">${_pfFila.length}</span>`
-        : '';
-      el.innerHTML = `<span style="position:relative;font-size:20px;line-height:1;">⚡${badge}</span>`;
-      return;
-    }
-
-    // ── FLIP-CLOCK WIDGET ───────────────────────────────────────────────────────
-    const sec = s.elapsed || 0;
-    const hh = Math.floor(sec / 3600);
-    const mm = Math.floor((sec % 3600) / 60);
-    const ss = sec % 60;
-    const pad = n => String(n).padStart(2,'0');
-
-    const digitCard = (val, dimmed) => `
-      <div style="background:rgba(255,255,255,${dimmed?'.03':'.07'});border:1px solid rgba(255,255,255,${dimmed?'.04':'.08'});
-        border-radius:10px;padding:8px 10px;min-width:38px;text-align:center;
-        box-shadow:0 2px 8px rgba(0,0,0,.4);">
-        <span style="font-family:'SF Mono','Courier New',monospace;font-size:26px;font-weight:700;
-          color:${dimmed?'#374151':'#e2e8f0'};letter-spacing:2px;line-height:1;">${val}</span>
-      </div>`;
-    const colon = `<span style="font-size:22px;font-weight:700;color:#374151;margin:0 2px;line-height:1;align-self:center;">:</span>`;
-
-    const timerRow = hh > 0
-      ? `${digitCard(pad(hh),false)}${colon}${digitCard(pad(mm),false)}${colon}${digitCard(pad(ss),false)}`
-      : `${digitCard(pad(mm),false)}${colon}${digitCard(pad(ss),false)}`;
-
-    const statBox = (num, label, color, bg) => `
-      <div style="flex:1;background:${bg};border:1px solid ${color}22;border-radius:10px;padding:9px 4px;text-align:center;">
-        <div style="font-family:'SF Mono','Courier New',monospace;font-size:22px;font-weight:800;color:${color};line-height:1;">${num}</div>
-        <div style="font-size:7px;color:#6b7280;letter-spacing:1.3px;margin-top:4px;font-weight:700;">${label}</div>
-      </div>`;
-
-    const acColor = total > 0 ? '#10b981' : '#374151';
-    const erColor = total > 0 ? '#f87171' : '#374151';
-    const acBg    = total > 0 ? 'rgba(16,185,129,.08)' : 'rgba(255,255,255,.03)';
-    const erBg    = total > 0 ? 'rgba(239,68,68,.08)'  : 'rgba(255,255,255,.03)';
-
-    const filaPin = _pfFila.length > 0
-      ? `<div style="width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;animation:_pfPulse 1.2s ease infinite;"></div>`
-      : '';
-
-    el.style.cssText = `position:fixed;bottom:20px;right:20px;z-index:2147483647;
-      background:linear-gradient(170deg,rgba(10,12,24,.97) 0%,rgba(6,8,18,.99) 100%);
-      backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-      border:1px solid rgba(255,255,255,.07);border-radius:18px;
-      width:260px;overflow:hidden;cursor:default;
-      box-shadow:0 20px 60px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.03) inset;
-      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-      user-select:none;animation:_pfSlideUp .3s cubic-bezier(.16,1,.3,1);`;
-
-    el.innerHTML = `
-      <div style="padding:11px 12px 10px;border-bottom:1px solid rgba(255,255,255,.05);
-        display:flex;align-items:center;justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:6px;height:6px;border-radius:50%;background:${dotColor};${isRunning?`box-shadow:0 0 7px ${dotColor};animation:_pfPulse 2s ease infinite;`:''}"></div>
-          <span style="font-size:8px;font-weight:800;letter-spacing:1.8px;color:${statusColor};">${statusLabel}</span>
-          ${filaPin}
-        </div>
-        <span id="_pfMinBtn" class="_pf-mb" style="width:20px;height:20px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:#4b5563;line-height:1;">−</span>
-      </div>
-      <div style="padding:14px 14px 10px;text-align:center;">
-        <div style="display:flex;align-items:center;justify-content:center;gap:4px;">
-          ${timerRow}
-        </div>
-        ${s.discName ? `<div style="margin-top:7px;font-size:8px;color:#4f46e5;letter-spacing:2px;font-weight:700;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.discName}</div>` : ''}
-      </div>
-      <div style="display:flex;gap:5px;padding:0 12px 12px;">
-        ${statBox(resolved, 'RESOLVIDAS', '#6366f1', 'rgba(99,102,241,.08)')}
-        ${statBox(s.acertos, 'ACERTOS', acColor, acBg)}
-        ${statBox(s.erros,   'ERROS',   erColor, erBg)}
-      </div>
-      ${s.dificuldade ? `<div style="padding:0 12px 10px;text-align:center;">
-        <span style="display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;letter-spacing:.7px;padding:3px 10px;border-radius:20px;background:${difBg};color:${difColor};">${difArrow} ${s.dificuldade.toUpperCase()}</span>
-      </div>` : ''}
-      ${_pfFila.length > 0 ? `<div style="margin:0 12px 10px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.18);border-radius:10px;padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:7px;" onclick="window._pfOpenFila&&window._pfOpenFila()">
-        <div style="width:5px;height:5px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444;animation:_pfPulse 1.2s ease infinite;flex-shrink:0;"></div>
-        <span style="font-size:10px;color:#fca5a5;font-weight:700;flex:1;">${_pfFila.length} revisão${_pfFila.length>1?'ões':''} pendente${_pfFila.length>1?'s':''}</span>
-        <kbd style="font-size:8px;color:#64748b;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:monospace;">Alt+R</kbd>
-      </div>` : ''}`;
-
-    const minBtn = document.getElementById('_pfMinBtn');
-    if (minBtn) minBtn.onclick = (ev) => { ev.stopPropagation(); _pfMin = true; pfRenderWidget(); };
-    window._pfOpenFila = () => { if (_pfFila[0]) window.open(_pfFila[0].link, '_self'); };
-  }
-
-  function createWidget(connected) {
-    if (document.getElementById('_pfBadge')) return;
-    pfInjectStyles();
-    el = document.createElement('div');
-    el.id = '_pfBadge';
-    el.title = 'Painel Fiscal Monitor — clique para abrir painel | duplo clique para desativar';
-    if (connected) {
-      pfRenderWidget();
-    } else {
-      el.style.cssText = `position:fixed;bottom:16px;right:16px;z-index:2147483647;cursor:pointer;
-        background:rgba(9,11,20,.88);backdrop-filter:blur(12px);border:1px solid rgba(245,158,11,.3);
-        border-radius:18px;padding:9px 14px;font-family:sans-serif;user-select:none;
-        box-shadow:0 4px 24px rgba(0,0,0,.55);color:#f59e0b;font-size:11px;font-weight:700;`;
-      el.innerHTML = '⚠ Painel não encontrado — clique para abrir';
-    }
-    el.ondblclick = function () {
-      if (confirm('Desativar monitor e remover widget?')) {
-        obs.disconnect();
-        el.remove();
-        el = null;
-        const fb = document.getElementById('_pfFilaBanner');
-        if (fb) fb.remove();
-        window._pfExt = false;
-      }
-    };
-    el.onclick = function (ev) {
-      if (ev.target.id === '_pfMinBtn') return;
-      if (_pfMin) {
-        _pfMin = false;
-        pfRenderWidget();
-      } else {
-        if (!_pfw || _pfw.closed) {
-          _pfw = window.open(PANEL_URL, '_pfPanel');
-          setTimeout(() => { sendSession(); setTimeout(scanHistory, 1500); }, 1500);
-        } else {
-          _pfw.focus();
-        }
-      }
-    };
-    document.body.appendChild(el);
-  }
-
-  // ── Banner de fila ────────────────────────────────────────────────────────
-
-  function pfShowFilaBanner(items) {
-    const prev = document.getElementById('_pfFilaBanner');
-    if (prev) prev.remove();
-    if (!items || !items.length) return;
-    const bn = document.createElement('div');
-    bn.id = '_pfFilaBanner';
-    bn.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ef4444,#f59e0b);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;z-index:2147483647;box-shadow:0 6px 30px rgba(239,68,68,.5);font-family:sans-serif;display:flex;align-items:center;gap:12px;cursor:pointer;';
-    const it = items[0];
-    bn.innerHTML = `📋 <span>Hora de revisar: <em style="font-weight:600;">${(it.desc || 'questão').substring(0, 50)}</em>${items.length > 1 ? ` (+${items.length - 1})` : ''}</span>
-      <button id="_pfFilaAbrir" style="background:#fff;color:#ef4444;border:none;border-radius:8px;padding:5px 12px;font-weight:800;cursor:pointer;font-size:12px;">Abrir</button>
-      <span id="_pfFilaFechar" style="opacity:.7;cursor:pointer;font-size:16px;">✕</span>`;
-    bn.onclick = () => { window.open(it.link, '_self'); };
-    document.body.appendChild(bn);
-    const abrirBtn = document.getElementById('_pfFilaAbrir');
-    if (abrirBtn) abrirBtn.onclick = (ev) => { ev.stopPropagation(); window.open(it.link, '_self'); };
-    const fecharBtn = document.getElementById('_pfFilaFechar');
-    if (fecharBtn) fecharBtn.onclick = (ev) => { ev.stopPropagation(); bn.remove(); };
-    setTimeout(() => { if (bn.parentElement) bn.style.opacity = '0.7'; }, 10000);
-  }
-
-  // ── Listeners de mensagens reversas ──────────────────────────────────────
-
-  window.addEventListener('message', function (ev) {
+  window.addEventListener('message', ev => {
     if (!ev.data || !ev.data.type) return;
+
     if (ev.data.type === 'TEC_STATS_UPDATE') {
-      _pfStats = {
+      S.stats = {
         elapsed: ev.data.elapsed || 0,
-        // Usa o maior entre o que o painel reporta e o contador local (evita zerar ao receber update com cron parado)
-        acertos: Math.max(ev.data.acertos || 0, _pfLocalAce),
-        erros:   Math.max(ev.data.erros   || 0, _pfLocalErr),
-        resolved: Math.max(ev.data.resolved || 0, _pfLocalAce + _pfLocalErr),
-        running: !!ev.data.running,
-        paused: !!ev.data.paused,
+        acertos: Math.max(ev.data.acertos || 0, S.localAce),
+        erros:   Math.max(ev.data.erros   || 0, S.localErr),
+        resolved: Math.max(ev.data.resolved || 0, S.localAce + S.localErr),
+        running: !!ev.data.running, paused: !!ev.data.paused,
         discName: ev.data.discName || '',
-        dificuldade: ev.data.dificuldade || _pfStats.dificuldade || ''
+        dificuldade: ev.data.dificuldade || S.stats.dificuldade || '',
       };
-      pfRenderWidget();
-      // Atualiza badge da extensão via background
-      try { chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', filaCount: _pfFila.length, stats: _pfStats }); } catch (x) { /* */ }
+      if (ev.data.discName && !S.caderno) S.caderno = ev.data.discName;
+      renderWidget();
+      try { chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', filaCount: S.fila.length, stats: S.stats }); } catch (x) { /* */ }
       return;
     }
     if (ev.data.type === 'PF_FILA_READY') {
-      _pfFila = ev.data.items || [];
-      pfShowFilaBanner(_pfFila);
-      pfRenderWidget();
-      try { chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', filaCount: _pfFila.length }); } catch (x) { /* */ }
+      S.fila = ev.data.items || [];
+      renderWidget();
+      try { chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', filaCount: S.fila.length }); } catch (x) { /* */ }
       return;
     }
-    if (ev.data.type === 'PF_OPEN_QUESTION' && ev.data.url) {
-      window.open(ev.data.url, '_self');
-      return;
-    }
+    if (ev.data.type === 'PF_OPEN_QUESTION' && ev.data.url) { window.open(ev.data.url, '_self'); return; }
     if (ev.data.type === 'PF_NO_FILA') {
       const nb = document.createElement('div');
-      nb.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#0c1120;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;z-index:2147483647;border:1px solid rgba(255,255,255,.15);font-family:sans-serif;';
+      nb.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#1a1d2e;color:#e2e8f0;padding:10px 18px;border-radius:10px;font-size:13px;z-index:2147483647;border:1px solid rgba(255,255,255,.12);font-family:sans-serif;';
       nb.textContent = '⏰ Fila vazia — nenhuma revisão pendente';
       document.body.appendChild(nb);
       setTimeout(() => nb.remove(), 3000);
-      return;
     }
   });
 
-  // Escuta mensagens do background (relay reverso + PING do popup)
-  chrome.runtime.onMessage.addListener(function (msg, _sender, sendResponse) {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg) return;
     if (msg.type === 'PING') {
-      sendResponse({ pong: true });
+      sendResponse({ pong: true, stats: { localAce: S.localAce, localErr: S.localErr, totalQ: S.totalQ, currentQ: S.currentQ, caderno: S.caderno } });
       return true;
     }
-    if (msg.type === 'FROM_PANEL') {
-      window.dispatchEvent(new MessageEvent('message', { data: msg.payload }));
+    if (msg.type === 'FROM_PANEL') window.dispatchEvent(new MessageEvent('message', { data: msg.payload }));
+    if (msg.type === 'GET_QUESTIONS') {
+      sendResponse({ questions: S.questions, totalQ: S.totalQ, currentQ: S.currentQ, caderno: S.caderno });
+      return true;
     }
   });
 
-  // ── Visibilidade (auto-pausa) ─────────────────────────────────────────────
-
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) {
-      _pfHiddenSince = Date.now();
-      setTimeout(function () {
-        if (document.hidden && _pfHiddenSince && (Date.now() - _pfHiddenSince) >= 120000) {
-          sendRaw({ type: 'TEC_TAB_INACTIVE' });
-        }
-      }, 120000);
-    } else {
-      if (_pfHiddenSince && (Date.now() - _pfHiddenSince) >= 120000) {
-        sendRaw({ type: 'TEC_TAB_ACTIVE' });
-      }
-      _pfHiddenSince = 0;
-    }
-  });
-
-  // ── Atalho Alt+R ──────────────────────────────────────────────────────────
-
-  window.addEventListener('keydown', function (ev) {
+  // Alt+R → próxima da fila
+  window.addEventListener('keydown', ev => {
     if (ev.altKey && (ev.key === 'r' || ev.key === 'R')) {
       ev.preventDefault();
       sendRaw({ type: 'PF_REQUEST_NEXT_FILA' });
     }
   });
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // Visibilidade → auto-pausa
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      S.hiddenSince = Date.now();
+      setTimeout(() => {
+        if (document.hidden && S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) sendRaw({ type: 'TEC_TAB_INACTIVE' });
+      }, 120000);
+    } else {
+      if (S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) sendRaw({ type: 'TEC_TAB_ACTIVE' });
+      S.hiddenSince = 0;
+    }
+  });
+
+  // ════════════════════════════════════════════════════════
+  // INIT
+  // ════════════════════════════════════════════════════════
 
   function init() {
-    _pfw = findPanelWindow();
-    _pfConnectTime = Date.now(); // inicia warmup de 3s
-    const init0 = parse();
-    if (init0) { A = init0.a; E = init0.e; }
+    S.pfw = findPanelWindow();
+    S.connectTime = Date.now();
+
+    const initCounter = parseCounter();
+    if (initCounter) { S.A = initCounter.a; S.E = initCounter.e; }
+
+    const pos0 = parsePosition();
+    if (pos0) { S.currentQ = pos0.n; ensureQuestions(pos0.t); }
+
+    const tx0 = document.body.innerText || '';
+    const matM = tx0.match(/Mat[eé]ria:\s*([^\n\r×]+)/i);
+    if (matM) S.materia = matM[1].replace(/\s*[××].*$/, '').trim();
+
+    const title = document.title.replace(/\s*[|·\-]\s*TecConcursos.*$/i, '').trim();
+    S.caderno = S.caderno || title || S.materia;
 
     const connected = send('ping', null);
     if (connected) {
-      sendSession();
-      _lastUrl = window.location.href;
+      const assM = tx0.match(/Assunto:\s*([^\n\r×]+)/i);
+      const assunto = assM ? assM[1].replace(/\s*[××].*$/, '').trim() : '';
+      const sp = new URLSearchParams(window.location.search);
+      send('session_info', { total: S.totalQ, materia: S.materia, assunto, caderno: S.caderno, cadernoBase: sp.get('cadernoBase') || '', idPasta: sp.get('idPasta') || '' });
+      S.lastUrl = window.location.href;
       setTimeout(scanHistory, 1500);
     }
 
-    createWidget(connected);
+    toBg('SESSION_START', { caderno: S.caderno, materia: S.materia, totalQ: S.totalQ, url: window.location.href, timestamp: Date.now() });
 
-    const obs = new MutationObserver(check);
-    obs.observe(document.body, { childList: true, subtree: true, characterData: true });
-    window._pfM = { obs, el, win: _pfw };
+    // Cria widget
+    if (!document.getElementById('_pfWidget2')) {
+      injectStyles();
+      widgetEl = document.createElement('div');
+      widgetEl.id = '_pfWidget2';
+      document.body.appendChild(widgetEl);
+      renderWidget();
+    }
 
-    // Notifica background que o content script está ativo nesta aba
+    observer = new MutationObserver(check);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
     try { chrome.runtime.sendMessage({ type: 'CONTENT_READY', connected, url: window.location.href }); } catch (x) { /* */ }
   }
 
-  // Aguarda DOM estar pronto
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
