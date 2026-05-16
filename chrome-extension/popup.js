@@ -5,10 +5,14 @@ const TEC_ORIGIN = 'tecconcursos.com.br';
 
 // ── Dados carregados ────────────────────────────────────────────────────────
 let appData = null;
-let cfgSettings = { dailyGoal: 30, notifications: true, autoReveal: true };
+let cfgSettings = { dailyGoal: 30, notifications: true, autoReveal: true, targetRate: 70 };
 let popTimerRunning = false;
 let popTimerElapsed = 0;
 let popTimerLocal = null;
+
+// ── Pomodoro local state ─────────────────────────────────────────────────────
+let pomData = { active: false, state: 'work', count: 0, remaining: 0, workMins: 25, breakMins: 5, longBreakMins: 15 };
+let pomTickInterval = null;
 
 // ── Cronômetro no popup ─────────────────────────────────────────────────────
 function fmtTimer(secs) {
@@ -114,6 +118,145 @@ function accColor(rate) {
   return '#ef4444';
 }
 
+// ── Gráfico semanal ──────────────────────────────────────────────────────────
+function renderWeekChart(weekStats) {
+  const el = document.getElementById('week-chart');
+  if (!el) return;
+  if (!weekStats || !weekStats.length) { el.innerHTML = ''; return; }
+
+  const W = 340, H = 100, padL = 6, padR = 6, padT = 8, padB = 28;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const maxResolved = Math.max(1, ...weekStats.map(d => d.resolved));
+  const barW = Math.floor(chartW / 7) - 4;
+
+  let bars = '';
+  let labels = '';
+  weekStats.forEach((d, i) => {
+    const x = padL + i * (chartW / 7) + (chartW / 7 - barW) / 2;
+    const barH = d.resolved > 0 ? Math.max(4, Math.round((d.resolved / maxResolved) * chartH)) : 2;
+    const y = padT + chartH - barH;
+    const color = d.resolved === 0 ? '#20243a' : d.taxa >= 70 ? '#22c55e' : d.taxa >= 50 ? '#f59e0b' : '#ef4444';
+    const isToday = i === weekStats.length - 1;
+    const stroke = isToday ? 'stroke="#818cf8" stroke-width="1.5"' : '';
+    bars += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${color}" opacity="${d.resolved === 0 ? 0.3 : 0.85}" ${stroke}>
+      <title>${d.date}: ${d.resolved} questões · ${d.taxa}% acertos</title>
+    </rect>`;
+    if (d.resolved > 0) {
+      bars += `<text x="${x + barW / 2}" y="${y - 3}" text-anchor="middle" font-size="8" fill="${color}" font-weight="700">${d.resolved}</text>`;
+    }
+    const lx = x + barW / 2;
+    const ly = H - 6;
+    const labelColor = isToday ? '#818cf8' : '#475569';
+    labels += `<text x="${lx}" y="${ly}" text-anchor="middle" font-size="9" fill="${labelColor}" font-weight="${isToday ? '800' : '600'}">${d.label}</text>`;
+  });
+
+  el.innerHTML = `
+    <div class="wc-title">DESEMPENHO SEMANAL</div>
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible;">
+      <line x1="${padL}" y1="${padT + chartH}" x2="${W - padR}" y2="${padT + chartH}" stroke="#20243a" stroke-width="1"/>
+      ${bars}
+      ${labels}
+    </svg>`;
+}
+
+// ── Pomodoro ─────────────────────────────────────────────────────────────────
+function fmtPomTime(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function pomodoroTick() {
+  if (pomData.active && pomData.remaining > 0) pomData.remaining--;
+  const stateEl = document.getElementById('pom-state-lbl');
+  const timeEl  = document.getElementById('pom-time-val');
+  const togBtn  = document.getElementById('pom-tog');
+  const countEl = document.getElementById('pom-count');
+  if (stateEl) stateEl.textContent = pomData.state === 'work' ? 'TRABALHO' : pomData.state === 'longBreak' ? 'PAUSA LONGA' : 'PAUSA';
+  if (timeEl) timeEl.textContent = fmtPomTime(pomData.active ? pomData.remaining : (pomData.workMins || 25) * 60);
+  if (togBtn) togBtn.textContent = pomData.active ? '⏸ Pausar' : '▶ Iniciar';
+  if (countEl) countEl.textContent = pomData.count;
+}
+
+function initPomodoro(data) {
+  if (!data) return;
+  pomData = { ...pomData, ...data };
+  if (pomTickInterval) clearInterval(pomTickInterval);
+  if (pomData.active) {
+    pomTickInterval = setInterval(pomodoroTick, 1000);
+  }
+  pomodoroTick();
+}
+
+// ── Ranking de prioridade ─────────────────────────────────────────────────────
+function renderPriorityList(subjects) {
+  const el = document.getElementById('priority-list');
+  if (!el) return;
+  if (!subjects || subjects.length < 2) { el.innerHTML = ''; return; }
+
+  const withRate = subjects.map(s => ({ ...s, erroRate: s.total > 0 ? Math.round(s.erros / s.total * 100) : 0 }));
+  withRate.sort((a, b) => b.erroRate - a.erroRate);
+
+  const top3 = withRate.slice(0, Math.min(3, withRate.length));
+  // Best = highest accuracy = lowest error rate among those with questions
+  const best = [...withRate].reverse().find(s => s.total > 0);
+
+  let html = '<div class="pri-title">RANKING DE MATÉRIAS</div>';
+
+  top3.forEach(s => {
+    html += `<div class="pri-row">
+      <span class="pri-badge atencao">⚠ Atenção</span>
+      <span class="pri-name">${s.materia}</span>
+      <span class="pri-pct" style="color:#ef4444">${s.erroRate}% erros</span>
+    </div>`;
+  });
+
+  if (best && !top3.find(s => s.materia === best.materia)) {
+    const acc = best.total > 0 ? Math.round(best.acertos / best.total * 100) : 0;
+    html += `<div class="pri-row">
+      <span class="pri-badge dominando">✓ Dominando</span>
+      <span class="pri-name">${best.materia}</span>
+      <span class="pri-pct" style="color:#22c55e">${acc}% acertos</span>
+    </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+// ── Aprovação bar ─────────────────────────────────────────────────────────────
+function renderAprovacao(todayStats, settings) {
+  const el = document.getElementById('aprovacao-bar');
+  if (!el) return;
+  const resolved = todayStats.resolved || 0;
+  if (resolved === 0) { el.innerHTML = ''; return; }
+
+  const target = (settings && settings.targetRate) || 70;
+  const taxa = pct(todayStats.acertos || 0, resolved);
+  const fillPct = Math.min(100, Math.round(taxa / target * 100));
+  const targetLinePct = 100; // target is always at 100% of the bar width
+  const fillColor = taxa >= 85 ? '#22c55e' : taxa >= target ? '#6366f1' : taxa >= 50 ? '#f59e0b' : '#ef4444';
+
+  let status = '';
+  if (taxa < 50)         status = `<span style="color:#ef4444">🔴 Em risco</span>`;
+  else if (taxa < target) status = `<span style="color:#f59e0b">🟡 Em desenvolvimento</span>`;
+  else if (taxa < 85)    status = `<span style="color:#22c55e">🟢 Aprovável</span>`;
+  else                   status = `<span style="color:#6366f1">🏆 Excelente!</span>`;
+
+  el.innerHTML = `
+    <div class="aprov-label">
+      <span>Predição de Aprovação</span>
+      <span>Meta: ${target}% · Atual: ${taxa}%</span>
+    </div>
+    <div class="aprov-track">
+      <div class="aprov-fill" style="width:${fillPct}%;background:${fillColor};"></div>
+      <div class="aprov-target-line" style="left:${targetLinePct}%;">
+        <span class="aprov-target-lbl">${target}%</span>
+      </div>
+    </div>
+    <div class="aprov-status">${status}</div>`;
+}
+
 // ── Renderização: Hoje ──────────────────────────────────────────────────────
 function renderHoje(data) {
   const today = data.todayStats || {};
@@ -146,6 +289,9 @@ function renderHoje(data) {
     ? `${today.acertos || 0} acertos · ${today.erros || 0} erros hoje`
     : 'Resolva questões no TEC para começar a rastrear.';
 
+  // Aprovação bar
+  renderAprovacao(today, data.settings);
+
   // Matérias
   const subjects = data.subjectStats || [];
   const subjList = document.getElementById('subj-list');
@@ -162,6 +308,15 @@ function renderHoje(data) {
       </div>`;
     }).join('');
   }
+
+  // Ranking de prioridade
+  renderPriorityList(subjects);
+
+  // Gráfico semanal
+  renderWeekChart(data.weekStats);
+
+  // Pomodoro
+  if (data.pomodoro) initPomodoro(data.pomodoro);
 }
 
 // ── Renderização: Revisão ───────────────────────────────────────────────────
@@ -177,12 +332,14 @@ function qCardHtml(q, sessionMode) {
   const difBadge = q.dificuldade ? `<span class="badge dif">${q.dificuldade}</span>` : '';
   const desc = (q.desc || 'Questão #' + q.qid).slice(0, 55);
   const url  = (q.url || '').replace(/'/g, "\\'");
+  const assuntoHtml = q.assunto ? `<div style="font-size:9px;color:#6366f1;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${q.assunto}</div>` : '';
 
   return `<div class="qcard ${isDue || sessionMode ? 'due' : ''}">
     <div class="qcard-top">
       <div class="qcard-icon wrong">✕</div>
       <div class="qcard-meta">
         <div class="qcard-mat">${q.materia || 'Matéria'}</div>
+        ${assuntoHtml}
         <div class="qcard-desc" title="${q.desc || ''}">${desc}</div>
       </div>
     </div>
@@ -318,6 +475,23 @@ function renderHistorico(data) {
   document.getElementById('hist-list').innerHTML = sessions.map(s => {
     const taxa = pct(s.acertos || 0, (s.acertos || 0) + (s.erros || 0));
     const color = accColor(taxa);
+    // Compute per-materia breakdown from session questions
+    let materiaHtml = '';
+    if (s.questions && s.questions.length > 0) {
+      const mats = {};
+      s.questions.forEach(q => {
+        if (!q.materia) return;
+        if (!mats[q.materia]) mats[q.materia] = { acertos: 0, erros: 0 };
+        if (q.result === 'correct') mats[q.materia].acertos++;
+        else if (q.result === 'wrong') mats[q.materia].erros++;
+      });
+      const matList = Object.entries(mats).slice(0, 3).map(([m, v]) => {
+        const t = v.acertos + v.erros;
+        const p = t > 0 ? Math.round(v.acertos / t * 100) : 0;
+        return `<span style="font-size:9px;color:${accColor(p)};font-weight:700;">${m.slice(0,18)}: ${p}%</span>`;
+      }).join('<span style="color:#374151"> · </span>');
+      if (matList) materiaHtml = `<div style="margin-top:5px;line-height:1.6;">${matList}</div>`;
+    }
     return `<div class="scard">
       <div class="scard-top">
         <span class="scard-date">📅 ${fmtDate(s.date)}</span>
@@ -330,6 +504,7 @@ function renderHistorico(data) {
         <span class="sstat r">Erros <span>${s.erros || 0}</span></span>
         <span class="sstat">⏱ <span>${fmtElapsed(s.elapsed)}</span></span>
       </div>
+      ${materiaHtml}
     </div>`;
   }).join('');
 }
@@ -407,6 +582,7 @@ async function loadAll() {
   try { renderHistorico(appData); }catch(e) { console.error('renderHistorico', e); }
   try { renderConfig(appData); }   catch(e) { console.error('renderConfig', e); }
   try { initPopTimer(appData.timer); } catch(e) { console.error('initPopTimer', e); }
+  try { if (appData.pomodoro) initPomodoro(appData.pomodoro); } catch(e) { console.error('initPomodoro', e); }
   updateStatusBar(); // dispara async sem bloquear o resto do loadAll
 
   // Badge de revisões (banco + sessão atual)
@@ -533,6 +709,53 @@ function resetStats() {
   });
 }
 
+// ── Simulado automático ───────────────────────────────────────────────────────
+async function startSimulado() {
+  const r = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'GET_SIMULADO' }, resolve));
+  if (!r || !r.questions || !r.questions.length) {
+    alert('Nenhuma questão no banco de erros ainda! Resolva questões no TEC primeiro.');
+    return;
+  }
+  const questions = r.questions;
+  // Store the queue for later use
+  await new Promise(resolve => chrome.storage.local.set({ simuladoQueue: questions }, resolve));
+  // Open all question URLs as tabs
+  questions.forEach(q => { if (q.url) chrome.tabs.create({ url: q.url }); });
+  alert(`Simulado iniciado com ${questions.length} questões! As abas foram abertas. Use o widget do TEC para navegar.`);
+  window.close();
+}
+
+// ── Pomodoro: botão toggle (start/pause) ──────────────────────────────────────
+function pomodoroToggle() {
+  if (pomData.active) {
+    chrome.runtime.sendMessage({ type: 'POMODORO_STOP' }, resp => {
+      if (resp) initPomodoro(resp);
+    });
+  } else {
+    chrome.runtime.sendMessage({ type: 'POMODORO_START' }, resp => {
+      if (resp) initPomodoro(resp);
+    });
+  }
+}
+
+function pomodoroSkipBtn() {
+  chrome.runtime.sendMessage({ type: 'POMODORO_SKIP' }, resp => {
+    if (resp) initPomodoro(resp);
+  });
+}
+
+function pomodoroResetBtn() {
+  chrome.runtime.sendMessage({ type: 'POMODORO_STOP' }, resp => {
+    if (resp) {
+      // Also reset count
+      pomData = { ...pomData, active: false, count: 0, state: 'work', remaining: 0 };
+      if (resp.workMins) pomData.remaining = resp.workMins * 60;
+      if (pomTickInterval) { clearInterval(pomTickInterval); pomTickInterval = null; }
+      pomodoroTick();
+    }
+  });
+}
+
 // ── Atualização em tempo real ────────────────────────────────────────────────
 let _refreshBusy = false; // mutex: evita chamadas concorrentes do intervalo
 
@@ -603,6 +826,18 @@ async function softRefresh(force = false) {
 
     // Atualiza só os contadores Huberman (sem reconstruir DOM)
     updateHubCountdowns(fresh.hubQueue || []);
+
+    // Atualiza aprovação, prioridade e gráfico semanal
+    try { renderAprovacao(fresh.todayStats || {}, fresh.settings); } catch (e) { /* */ }
+    try { renderPriorityList(fresh.subjectStats || []); } catch (e) { /* */ }
+    try { renderWeekChart(fresh.weekStats); } catch (e) { /* */ }
+
+    // Atualiza pomodoro se mudou estado
+    if (fresh.pomodoro && fresh.pomodoro.active !== pomData.active) {
+      initPomodoro(fresh.pomodoro);
+    } else if (fresh.pomodoro) {
+      pomData = { ...pomData, ...fresh.pomodoro };
+    }
   } finally {
     _refreshBusy = false;
   }
@@ -642,6 +877,25 @@ document.getElementById('cfg-save').addEventListener('click', saveConfig);
 document.getElementById('cfg-export-json').addEventListener('click', exportWrong);
 document.getElementById('cfg-export-csv').addEventListener('click', exportCSV);
 document.getElementById('cfg-reset').addEventListener('click', resetStats);
+
+// Pomodoro buttons
+document.getElementById('pom-tog').addEventListener('click', pomodoroToggle);
+document.getElementById('pom-skip').addEventListener('click', pomodoroSkipBtn);
+document.getElementById('pom-reset').addEventListener('click', pomodoroResetBtn);
+
+// Pomodoro collapsible section toggle
+document.getElementById('pom-toggle-section').addEventListener('click', () => {
+  const body = document.getElementById('pom-body');
+  const arrow = document.getElementById('pom-arrow');
+  if (!body || !arrow) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  arrow.classList.toggle('open', !isOpen);
+});
+
+// Simulado
+const btnSimulado = document.getElementById('btn-simulado');
+if (btnSimulado) btnSimulado.addEventListener('click', startSimulado);
 
 // ── Event delegation for dynamic buttons (hub cards and qcards) ──────────────
 document.addEventListener('click', e => {
