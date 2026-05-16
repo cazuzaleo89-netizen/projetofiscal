@@ -1768,6 +1768,7 @@ select.inp{appearance:none;cursor:pointer;}
     <div class="nav-item" onclick="goPage('disciplinas',this)"><span class="nav-icon">⊞</span>Disciplinas</div>
     <div class="nav-item" onclick="goPage('config',this)"><span class="nav-icon">⚙</span>Configurações</div>
     <div class="nav-item" onclick="goPage('importar',this)"><span class="nav-icon">⬆</span>Importar Edital</div>
+    <div class="nav-item" onclick="goPage('repositorio',this)"><span class="nav-icon">📦</span>Repositório</div>
   </nav>
   <div class="sb-footer" style="display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.25rem;">
     <span style="font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--muted2)">Hoje</span>
@@ -4968,6 +4969,47 @@ select.inp{appearance:none;cursor:pointer;}
   </div>
 </div>
 
+<!-- ═══ REPOSITÓRIO DE QUESTÕES ════════════════════════════════════════════ -->
+<div id="page-repositorio" class="page">
+  <div style="display:flex;flex-direction:column;gap:1rem;height:100%;">
+
+    <!-- Toolbar -->
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;">
+      <input id="repo-search" type="text" placeholder="🔍 Buscar questão, assunto, disciplina…"
+        style="flex:1;min-width:200px;padding:.5rem .9rem;border-radius:var(--r);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:.82rem;"
+        oninput="repoFilter()">
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap;" id="repo-pills">
+        <button class="btn btn-ghost repo-pill active" data-filter="all" onclick="repoSetFilter('all',this)" style="font-size:.72rem;padding:.3rem .7rem;">Todas</button>
+        <button class="btn btn-ghost repo-pill" data-filter="3" onclick="repoSetFilter('3',this)" style="font-size:.72rem;padding:.3rem .7rem;">🔴 Críticas</button>
+        <button class="btn btn-ghost repo-pill" data-filter="2" onclick="repoSetFilter('2',this)" style="font-size:.72rem;padding:.3rem .7rem;">🟡 Atenção</button>
+        <button class="btn btn-ghost repo-pill" data-filter="1" onclick="repoSetFilter('1',this)" style="font-size:.72rem;padding:.3rem .7rem;">🟢 Dominadas</button>
+      </div>
+    </div>
+
+    <!-- Import bar -->
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:.6rem .9rem;">
+      <span style="font-size:.75rem;color:var(--text-dim);font-weight:600;">Importar dados:</span>
+      <label class="btn btn-ghost" style="font-size:.72rem;padding:.3rem .7rem;cursor:pointer;">
+        📂 Arquivo JSON
+        <input type="file" id="repo-file-input" accept=".json" style="display:none;" onchange="repoImportFile(event)">
+      </label>
+      <button class="btn btn-ghost" style="font-size:.72rem;padding:.3rem .7rem;" onclick="repoImportClipboard()">📋 Colar JSON</button>
+      <button class="btn btn-ghost" style="font-size:.72rem;padding:.3rem .7rem;" onclick="repoExport()">⬇ Exportar</button>
+      <button class="btn btn-ghost" style="font-size:.72rem;padding:.3rem .7rem;color:var(--red);" onclick="repoClear()">🗑 Limpar</button>
+      <span id="repo-stats-lbl" style="margin-left:auto;font-size:.72rem;color:var(--text-dim);"></span>
+    </div>
+
+    <!-- Cards area -->
+    <div id="repo-drop-zone" style="flex:1;overflow-y:auto;min-height:200px;"
+      ondragover="event.preventDefault();this.style.outline='2px dashed var(--accent)'"
+      ondragleave="this.style.outline=''"
+      ondrop="repoDrop(event);this.style.outline=''">
+      <div id="repo-content" style="display:flex;flex-direction:column;gap:1rem;"></div>
+    </div>
+
+  </div>
+</div>
+
 </main>
 <div class="overlay" id="mw-week-modal" onclick="closeMwWeekModal(event)">
   <div class="modal" style="width:420px;">
@@ -5142,7 +5184,7 @@ function uid(){return Math.random().toString(36).slice(2,9);}
 function syncGoal(){const v=parseInt(document.getElementById('cfg-daily-goal').value)||4;document.getElementById('daily-goal').value=v;saveState();}
 
 // ═══ NAV ══════════════════════════════════════
-const PAGE_META={arena:{icon:'⚔',title:'Arena — Modo Foco'},consistencia:{icon:'🔥',title:'Consistência de Estudo'},'problemáticas':{icon:'⚠️',title:'Questões Problemáticas — Reincidências'},dashboard:{icon:'◈',title:'Dashboard'},cronometro:{icon:'◷',title:'Cronômetro'},missoes:{icon:'⚡',title:'Painel de Missões Ativas'},sessao:{icon:'🎯',title:'Sessão de Questões'},filarev:{icon:'⏱',title:'Fila de Revisão por Link'},questoes:{icon:'✎',title:'Questões & Desempenho'},estatisticas:{icon:'◧',title:'Estatísticas'},progresso:{icon:'◎',title:'Progresso'},registros:{icon:'≡',title:'Histórico de Sessões'},revisoes:{icon:'🔁',title:'Revisão Espaçada'},resumos:{icon:'📖',title:'Resumos de Estudo'},metas:{icon:'◉',title:'Metas Semanais'},disciplinas:{icon:'⊞',title:'Disciplinas'},config:{icon:'⚙',title:'Configurações'},importar:{icon:'⬆',title:'Importar Edital'}};
+const PAGE_META={arena:{icon:'⚔',title:'Arena — Modo Foco'},consistencia:{icon:'🔥',title:'Consistência de Estudo'},'problemáticas':{icon:'⚠️',title:'Questões Problemáticas — Reincidências'},dashboard:{icon:'◈',title:'Dashboard'},cronometro:{icon:'◷',title:'Cronômetro'},missoes:{icon:'⚡',title:'Painel de Missões Ativas'},sessao:{icon:'🎯',title:'Sessão de Questões'},filarev:{icon:'⏱',title:'Fila de Revisão por Link'},questoes:{icon:'✎',title:'Questões & Desempenho'},estatisticas:{icon:'◧',title:'Estatísticas'},progresso:{icon:'◎',title:'Progresso'},registros:{icon:'≡',title:'Histórico de Sessões'},revisoes:{icon:'🔁',title:'Revisão Espaçada'},resumos:{icon:'📖',title:'Resumos de Estudo'},metas:{icon:'◉',title:'Metas Semanais'},disciplinas:{icon:'⊞',title:'Disciplinas'},config:{icon:'⚙',title:'Configurações'},importar:{icon:'⬆',title:'Importar Edital'},repositorio:{icon:'📦',title:'Repositório de Questões'}};
 
 
 // ═══ TIMER ════════════════════════════════════
@@ -10718,6 +10760,7 @@ const _origGoPage = goPage;
 goPage = function(name, el){
   _origGoPage(name, el);
   if(name==='config'){ renderEdital(); renderEditalAnalysis(); backupUpdateStats(); }
+  if(name==='repositorio'){ repositorioInit(); }
 };
 
 // ═══════════════════════════════════════════════
@@ -19213,6 +19256,251 @@ async function pwaInstall(){
   if(outcome === 'accepted') flash('✅ Instalando…', '#22d3ee');
   _deferredPrompt = null;
 }
+</script>
+
+<!-- ═══ REPOSITÓRIO DE QUESTÕES — JS ══════════════════════════════════════ -->
+<script>
+(function(){
+  const LS_KEY = 'pf_repositorio_v2';
+  let _repoData = {};   // { disciplina: { assunto: { qid: {...} } } }
+  let _repoFilter = 'all';
+  let _repoSearch = '';
+  let _repoInited = false;
+
+  /* ── Load / Save ─────────────────────────────────────── */
+  function repoLoad(){
+    try { _repoData = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e){ _repoData={}; }
+  }
+  function repoSave(){
+    localStorage.setItem(LS_KEY, JSON.stringify(_repoData));
+  }
+
+  /* ── Merge incoming data ──────────────────────────────── */
+  function repoMerge(incoming){
+    if(!incoming || typeof incoming !== 'object') return 0;
+    let count = 0;
+    for(const disc of Object.keys(incoming)){
+      if(!_repoData[disc]) _repoData[disc] = {};
+      for(const assunto of Object.keys(incoming[disc])){
+        if(!_repoData[disc][assunto]) _repoData[disc][assunto] = {};
+        for(const [qid, q] of Object.entries(incoming[disc][assunto])){
+          const existing = _repoData[disc][assunto][qid];
+          if(!existing){
+            _repoData[disc][assunto][qid] = q;
+            count++;
+          } else {
+            // Merge: accumulate acertos/erros, keep highest importance
+            existing.acertos = (existing.acertos||0) + (q.acertos||0);
+            existing.erros   = (existing.erros||0)   + (q.erros||0);
+            existing.importance = existing.erros >= 2 ? 3 : existing.erros === 1 ? 2 : 1;
+            if(q.lastSeen && (!existing.lastSeen || q.lastSeen > existing.lastSeen))
+              existing.lastSeen = q.lastSeen;
+          }
+        }
+      }
+    }
+    return count;
+  }
+
+  /* ── Importance badge ─────────────────────────────────── */
+  function impBadge(imp){
+    if(imp===3) return '<span style="color:#ef4444;font-weight:700;">🔴 Crítica</span>';
+    if(imp===2) return '<span style="color:#f59e0b;font-weight:700;">🟡 Atenção</span>';
+    return '<span style="color:#22c55e;font-weight:700;">🟢 Dominada</span>';
+  }
+
+  /* ── Flatten & filter questions ───────────────────────── */
+  function flatQuestions(){
+    const q = [];
+    for(const [disc, assuntos] of Object.entries(_repoData)){
+      for(const [assunto, qmap] of Object.entries(assuntos)){
+        for(const [qid, data] of Object.entries(qmap)){
+          q.push({ disc, assunto, qid, ...data });
+        }
+      }
+    }
+    return q;
+  }
+
+  function applyFilters(all){
+    let list = all;
+    if(_repoFilter !== 'all') list = list.filter(q => String(q.importance||1) === _repoFilter);
+    if(_repoSearch.length > 1){
+      const s = _repoSearch.toLowerCase();
+      list = list.filter(q =>
+        (q.disc||'').toLowerCase().includes(s) ||
+        (q.assunto||'').toLowerCase().includes(s) ||
+        (q.enunciado||'').toLowerCase().includes(s) ||
+        (q.qid||'').toLowerCase().includes(s)
+      );
+    }
+    return list;
+  }
+
+  /* ── Render ───────────────────────────────────────────── */
+  function repoRender(){
+    const el = document.getElementById('repo-content');
+    if(!el) return;
+
+    const all = flatQuestions();
+    const filtered = applyFilters(all);
+
+    // Stats label
+    const sl = document.getElementById('repo-stats-lbl');
+    if(sl){
+      const c3 = all.filter(q=>q.importance===3).length;
+      const c2 = all.filter(q=>q.importance===2).length;
+      const c1 = all.filter(q=>q.importance===1).length;
+      sl.textContent = `📚 ${all.length} | 🔴 ${c3} | 🟡 ${c2} | 🟢 ${c1}`;
+    }
+
+    if(filtered.length === 0){
+      el.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-dim);">${all.length===0?'<div style="font-size:2rem;">📭</div><div style="margin-top:.5rem;">Nenhuma questão importada ainda.<br>Use os botões acima para importar dados da extensão.</div>':'Nenhuma questão corresponde ao filtro.'}</div>`;
+      return;
+    }
+
+    // Group by disciplina → assunto
+    const grouped = {};
+    for(const q of filtered){
+      if(!grouped[q.disc]) grouped[q.disc] = {};
+      if(!grouped[q.disc][q.assunto]) grouped[q.disc][q.assunto] = [];
+      grouped[q.disc][q.assunto].push(q);
+    }
+
+    // Sort: importance desc, then erros desc
+    function sortQ(a,b){ return (b.importance||1)-(a.importance||1) || (b.erros||0)-(a.erros||0); }
+
+    let html = '';
+    const discs = Object.keys(grouped).sort();
+    for(const disc of discs){
+      const assuntos = grouped[disc];
+      const discTotal = Object.values(assuntos).flat();
+      const dc3 = discTotal.filter(q=>q.importance===3).length;
+      const dc2 = discTotal.filter(q=>q.importance===2).length;
+      html += `<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">`;
+      html += `<div style="display:flex;align-items:center;gap:.6rem;padding:.7rem 1rem;background:rgba(74,108,247,.07);border-bottom:1px solid var(--border);cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">`;
+      html += `<span style="font-weight:700;font-size:.92rem;">📁 ${esc(disc)}</span>`;
+      html += `<span style="margin-left:auto;display:flex;gap:.35rem;">`;
+      if(dc3) html += `<span style="background:#ef4444;color:#fff;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:10px;">${dc3} críticas</span>`;
+      if(dc2) html += `<span style="background:#f59e0b;color:#fff;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:10px;">${dc2} atenção</span>`;
+      html += `<span style="background:var(--border);color:var(--text-dim);font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:10px;">${discTotal.length} questões</span>`;
+      html += `</span></div>`;
+      html += `<div>`;
+      for(const assunto of Object.keys(assuntos).sort()){
+        const qs = assuntos[assunto].sort(sortQ);
+        html += `<div style="border-bottom:1px solid var(--border);">`;
+        html += `<div style="display:flex;align-items:center;gap:.5rem;padding:.5rem 1.2rem;background:rgba(255,255,255,.02);cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">`;
+        html += `<span style="font-size:.82rem;font-weight:600;color:var(--text-dim);">📂 ${esc(assunto)}</span>`;
+        html += `<span style="margin-left:auto;font-size:.68rem;color:var(--text-dim);">${qs.length} questões</span>`;
+        html += `</div>`;
+        html += `<div style="display:none;">`;
+        for(const q of qs){
+          const imp = q.importance || 1;
+          const borderColor = imp===3?'#ef4444':imp===2?'#f59e0b':'#22c55e';
+          html += `<div style="border-left:3px solid ${borderColor};margin:.4rem .8rem .4rem 1.6rem;padding:.55rem .8rem;background:var(--bg);border-radius:var(--r);font-size:.78rem;">`;
+          html += `<div style="display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap;">`;
+          html += `<span style="flex:1;">${esc((q.enunciado||q.qid||'Questão').substring(0,180))}${(q.enunciado||'').length>180?'…':''}</span>`;
+          html += `${impBadge(imp)}`;
+          html += `</div>`;
+          html += `<div style="display:flex;gap:.8rem;margin-top:.35rem;font-size:.7rem;color:var(--text-dim);flex-wrap:wrap;align-items:center;">`;
+          html += `<span>✅ ${q.acertos||0} acertos</span><span>❌ ${q.erros||0} erros</span>`;
+          if(q.lastSeen) html += `<span>📅 ${new Date(q.lastSeen).toLocaleDateString('pt-BR')}</span>`;
+          if(q.url) html += `<a href="${q.url}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:.68rem;">🔗 Ver no TEC</a>`;
+          html += `</div></div>`;
+        }
+        html += `</div></div>`;
+      }
+      html += `</div></div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* ── Public functions (attached to window) ─────────────── */
+  window.repositorioInit = function(){
+    if(!_repoInited){
+      repoLoad();
+      _repoInited = true;
+    } else {
+      repoLoad();
+    }
+    repoRender();
+  };
+
+  window.repoFilter = function(){
+    _repoSearch = (document.getElementById('repo-search')||{}).value || '';
+    repoRender();
+  };
+
+  window.repoSetFilter = function(f, btn){
+    _repoFilter = f;
+    document.querySelectorAll('.repo-pill').forEach(p => p.classList.remove('active'));
+    if(btn) btn.classList.add('active');
+    repoRender();
+  };
+
+  window.repoImportFile = function(evt){
+    const file = evt.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const data = JSON.parse(e.target.result);
+        repoLoad();
+        const n = repoMerge(data);
+        repoSave();
+        repoRender();
+        flash(`✅ ${n} questões importadas!`, '#22c55e');
+      } catch(err){ flash('❌ JSON inválido: ' + err.message, '#ef4444'); }
+    };
+    reader.readAsText(file);
+    evt.target.value = '';
+  };
+
+  window.repoImportClipboard = async function(){
+    try{
+      const text = await navigator.clipboard.readText();
+      const data = JSON.parse(text);
+      repoLoad();
+      const n = repoMerge(data);
+      repoSave();
+      repoRender();
+      flash(`✅ ${n} questões importadas da área de transferência!`, '#22c55e');
+    } catch(err){ flash('❌ Falha ao ler clipboard: ' + err.message, '#ef4444'); }
+  };
+
+  window.repoDrop = function(evt){
+    evt.preventDefault();
+    const file = evt.dataTransfer.files[0];
+    if(!file){
+      // try text
+      const text = evt.dataTransfer.getData('text');
+      if(text){ try{ const data=JSON.parse(text); repoLoad(); const n=repoMerge(data); repoSave(); repoRender(); flash(`✅ ${n} questões importadas!`,'#22c55e'); }catch(e){ flash('❌ JSON inválido','#ef4444'); } }
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e){ try{ const data=JSON.parse(e.target.result); repoLoad(); const n=repoMerge(data); repoSave(); repoRender(); flash(`✅ ${n} questões importadas!`,'#22c55e'); }catch(err){ flash('❌ JSON inválido: '+err.message,'#ef4444'); } };
+    reader.readAsText(file);
+  };
+
+  window.repoExport = function(){
+    repoLoad();
+    const blob = new Blob([JSON.stringify(_repoData, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `repositorio-questoes-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+  };
+
+  window.repoClear = function(){
+    if(!confirm('Apagar todo o repositório local? Esta ação não pode ser desfeita.')) return;
+    _repoData = {};
+    repoSave();
+    repoRender();
+    flash('🗑 Repositório limpo', '#f59e0b');
+  };
+})();
 </script>
 </body>
 </html>
