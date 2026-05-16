@@ -156,10 +156,15 @@ async function addToWrongBank(payload) {
   const today = todayKey();
 
   if (bank[payload.qid]) {
-    bank[payload.qid].errorCount = (bank[payload.qid].errorCount || 1) + 1;
-    bank[payload.qid].lastError  = today;
+    bank[payload.qid].errorCount  = (bank[payload.qid].errorCount || 1) + 1;
+    bank[payload.qid].lastError   = today;
+    bank[payload.qid].nextReview  = today;   // volta para revisão imediata ao errar de novo
+    // Atualiza metadados se vieram desta vez
+    if (payload.materia)     bank[payload.qid].materia     = payload.materia;
+    if (payload.assunto)     bank[payload.qid].assunto     = payload.assunto;
+    if (payload.desc)        bank[payload.qid].desc        = payload.desc;
+    if (payload.dificuldade) bank[payload.qid].dificuldade = payload.dificuldade;
   } else {
-    const nextDay = new Date(); nextDay.setDate(nextDay.getDate() + 1);
     bank[payload.qid] = {
       qid:         payload.qid,
       url:         payload.url         || '',
@@ -170,7 +175,7 @@ async function addToWrongBank(payload) {
       errorCount:  1,
       firstError:  today,
       lastError:   today,
-      nextReview:  nextDay.toISOString().split('T')[0],
+      nextReview:  today,   // aparece IMEDIATAMENTE na fila de revisão
       interval:    1,
       repetitions: 0,
       easeFactor:  2.5,
@@ -364,7 +369,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const today = await updateTodayStats({ erros: 1 });
         if (payload.materia) await updateSubjectStats(payload.materia, 0, 1);
         await addToWrongBank(payload);
-        // Conta quantas revisões estão devidas para o badge
+        // Badge = total de revisões devidas (nextReview <= hoje inclui a que acabou de errar)
         const due = await getDueReviews();
         updateBadge(due.length);
         if (activeSession) {

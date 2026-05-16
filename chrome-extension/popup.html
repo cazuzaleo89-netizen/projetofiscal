@@ -557,11 +557,50 @@ function renderHoje(data) {
 }
 
 // ── Renderização: Revisão ───────────────────────────────────────────────────
-function renderRevisao(data) {
-  const due = data.dueReviews || [];
-  document.getElementById('due-count').textContent = due.length;
+function qCardHtml(q, sessionMode) {
+  const today = new Date().toISOString().split('T')[0];
+  const isDue  = !q.nextReview || q.nextReview <= today;
+  const errBadge  = q.errorCount ? `<span class="badge err">✕ ${q.errorCount}x</span>` : '';
+  const dateBadge = sessionMode
+    ? `<span class="badge due-now">🔴 Esta sessão</span>`
+    : isDue
+      ? `<span class="badge due-now">⏰ Revisar hoje</span>`
+      : `<span class="badge future">📅 ${fmtDate(q.nextReview)}</span>`;
+  const difBadge = q.dificuldade ? `<span class="badge dif">${q.dificuldade}</span>` : '';
+  const desc = (q.desc || 'Questão #' + q.qid).slice(0, 55);
+  const url  = (q.url || '').replace(/'/g, "\\'");
 
-  if (!due.length) {
+  return `<div class="qcard ${isDue || sessionMode ? 'due' : ''}">
+    <div class="qcard-top">
+      <div class="qcard-icon wrong">✕</div>
+      <div class="qcard-meta">
+        <div class="qcard-mat">${q.materia || 'Matéria'}</div>
+        <div class="qcard-desc" title="${q.desc || ''}">${desc}</div>
+      </div>
+    </div>
+    <div class="qcard-badges">${errBadge}${dateBadge}${difBadge}</div>
+    <div class="qcard-btns">
+      <button class="qbtn review" onclick="openQuestion('${url}')">📖 Abrir</button>
+      <button class="qbtn acertei" onclick="markReview('${q.qid}', 4)">✓ Acertei</button>
+      <button class="qbtn errei" onclick="markReview('${q.qid}', 1)">✕ Errei</button>
+    </div>
+  </div>`;
+}
+
+function renderRevisao(data) {
+  const due     = data.dueReviews || [];
+  const session = data.activeSession;
+
+  // Erros da sessão atual (não duplicar com o banco de revisão)
+  const dueQids = new Set(due.map(q => q.qid));
+  const sessionErrors = session && session.questions
+    ? session.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids.has(q.qid))
+    : [];
+
+  const total = due.length + sessionErrors.length;
+  document.getElementById('due-count').textContent = total;
+
+  if (total === 0) {
     document.getElementById('rev-list').innerHTML = `
       <div class="rev-empty">
         <div class="icon">🎉</div>
@@ -570,32 +609,23 @@ function renderRevisao(data) {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('rev-list').innerHTML = due.map(q => {
-    const isDue = q.nextReview <= today;
-    const errBadge = `<span class="badge err">✕ ${q.errorCount}x</span>`;
-    const dateBadge = isDue
-      ? `<span class="badge due-now">⏰ Revisar hoje</span>`
-      : `<span class="badge future">📅 ${fmtDate(q.nextReview)}</span>`;
-    const difBadge = q.dificuldade ? `<span class="badge dif">${q.dificuldade}</span>` : '';
-    const desc = (q.desc || 'Questão #' + q.qid).slice(0, 55);
+  let html = '';
 
-    return `<div class="qcard ${isDue ? 'due' : ''}">
-      <div class="qcard-top">
-        <div class="qcard-icon wrong">✕</div>
-        <div class="qcard-meta">
-          <div class="qcard-mat">${q.materia || 'Matéria'}</div>
-          <div class="qcard-desc" title="${q.desc || ''}">${desc}</div>
-        </div>
-      </div>
-      <div class="qcard-badges">${errBadge}${dateBadge}${difBadge}</div>
-      <div class="qcard-btns">
-        <button class="qbtn review" onclick="openQuestion('${q.url}')">📖 Revisar</button>
-        <button class="qbtn acertei" onclick="markReview('${q.qid}', 4)">✓ Acertei</button>
-        <button class="qbtn errei" onclick="markReview('${q.qid}', 1)">✕ Errei</button>
-      </div>
-    </div>`;
-  }).join('');
+  // Seção "Esta Sessão" — erros recentes ainda não no banco
+  if (sessionErrors.length > 0) {
+    html += `<div style="font-size:10px;color:#ef4444;font-weight:700;letter-spacing:.8px;margin-bottom:7px;">🔴 DESTA SESSÃO</div>`;
+    html += sessionErrors.map(q => qCardHtml(q, true)).join('');
+  }
+
+  // Seção erros do banco de revisão
+  if (due.length > 0) {
+    if (sessionErrors.length > 0) {
+      html += `<div style="font-size:10px;color:#475569;font-weight:700;letter-spacing:.8px;margin:10px 0 7px;">📅 AGENDADAS</div>`;
+    }
+    html += due.map(q => qCardHtml(q, false)).join('');
+  }
+
+  document.getElementById('rev-list').innerHTML = html;
 }
 
 // ── Renderização: Histórico ─────────────────────────────────────────────────
@@ -697,11 +727,16 @@ async function loadAll() {
   updateStatusBar();
   initPopTimer(appData.timer);
 
-  // Badge de revisões
-  const dueCount = (appData.dueReviews || []).length;
-  if (dueCount > 0) {
-    document.querySelector('[data-tab="revisao"]').textContent = `REVISÃO (${dueCount})`;
-  }
+  // Badge de revisões (banco + sessão atual)
+  const due2    = (appData.dueReviews || []);
+  const sess2   = appData.activeSession;
+  const dueQids2 = new Set(due2.map(q => q.qid));
+  const sessErr2 = sess2 && sess2.questions
+    ? sess2.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids2.has(q.qid))
+    : [];
+  const totalRev2 = due2.length + sessErr2.length;
+  const revTabEl = document.querySelector('[data-tab="revisao"]');
+  if (revTabEl) revTabEl.textContent = totalRev2 > 0 ? `REVISÃO (${totalRev2})` : 'REVISÃO';
 }
 
 // ── Ações ────────────────────────────────────────────────────────────────────
@@ -783,8 +818,87 @@ function resetStats() {
   });
 }
 
+// ── Atualização em tempo real ────────────────────────────────────────────────
+async function softRefresh() {
+  let fresh;
+  try {
+    fresh = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('timeout')), 1500);
+      chrome.runtime.sendMessage({ type: 'GET_POPUP_DATA' }, r => {
+        clearTimeout(t);
+        if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+        else resolve(r || {});
+      });
+    });
+  } catch { return; }
+
+  appData = fresh;
+
+  // Atualiza stats de hoje sem re-renderizar tudo
+  const today = fresh.todayStats || {};
+  const resolved = today.resolved || 0;
+  const acertos  = today.acertos  || 0;
+  const erros    = today.erros    || 0;
+  const goal     = (fresh.settings || {}).dailyGoal || 30;
+  const goalPct  = Math.min(100, Math.round(resolved / goal * 100));
+  const taxa     = pct(acertos, resolved);
+
+  setEl('d-resolved', fmt(resolved));
+  setEl('d-acertos',  fmt(acertos));
+  setEl('d-erros',    fmt(erros));
+  setEl('goal-progress', `${resolved} / ${goal}`);
+  setEl('ring-pct', resolved > 0 ? taxa + '%' : '—');
+  setEl('ring-sub', resolved > 0
+    ? `${acertos} acertos · ${erros} erros hoje`
+    : 'Resolva questões no TEC para começar a rastrear.');
+
+  const fill = document.getElementById('goal-fill');
+  if (fill) fill.style.width = goalPct + '%';
+
+  const arc = document.getElementById('ring-arc');
+  if (arc) {
+    arc.style.strokeDashoffset = 138.2 - (138.2 * taxa / 100);
+    arc.style.stroke = accColor(taxa);
+  }
+  const ringPct = document.getElementById('ring-pct');
+  if (ringPct) ringPct.style.color = accColor(taxa);
+
+  // Atualiza streak
+  const global = fresh.globalStats || {};
+  setEl('streak-badge', `🔥 ${global.streak || 0}d`);
+
+  // Conta revisões (banco + sessão)
+  const due = fresh.dueReviews || [];
+  const session = fresh.activeSession;
+  const dueQids = new Set(due.map(q => q.qid));
+  const sessionErr = session && session.questions
+    ? session.questions.filter(q => q.result === 'wrong' && q.qid && !dueQids.has(q.qid))
+    : [];
+  const totalRev = due.length + sessionErr.length;
+
+  const revTab = document.querySelector('[data-tab="revisao"]');
+  if (revTab) revTab.textContent = totalRev > 0 ? `REVISÃO (${totalRev})` : 'REVISÃO';
+
+  // Se a aba Revisão estiver ativa, re-renderiza a lista
+  if (document.getElementById('panel-revisao').classList.contains('active')) {
+    renderRevisao(fresh);
+  }
+
+  // Status bar
+  updateStatusBar();
+}
+
+function setEl(id, txt) {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== txt) el.textContent = txt;
+}
+
 // ── Inicializa ───────────────────────────────────────────────────────────────
 loadAll();
+
+// Atualiza a cada 3 segundos enquanto o popup estiver aberto
+const _refreshInterval = setInterval(softRefresh, 3000);
+window.addEventListener('unload', () => clearInterval(_refreshInterval));
 </script>
 </body>
 </html>
