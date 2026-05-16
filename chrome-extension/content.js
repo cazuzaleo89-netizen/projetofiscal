@@ -877,28 +877,16 @@
     }
   });
 
-  // Visibilidade → auto-pausa cronômetro + notifica painel
+  // Visibilidade → notifica painel (cronômetro só é controlado manualmente)
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       S.hiddenSince = Date.now();
-      // Pausa o cronômetro imediatamente ao esconder a aba
-      if (timerRunning) {
-        timerControl('TIMER_PAUSE');
-        timerRunning = false;
-        renderWidget();
-      }
       setTimeout(() => {
         if (document.hidden && S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) {
           sendRaw({ type: 'TEC_TAB_INACTIVE' });
         }
       }, 120000);
     } else {
-      // Retoma o cronômetro ao voltar para a aba
-      if (!timerRunning) {
-        timerControl('TIMER_START');
-        timerRunning = true;
-        renderWidget();
-      }
       if (S.hiddenSince && (Date.now() - S.hiddenSince) >= 120000) sendRaw({ type: 'TEC_TAB_ACTIVE' });
       S.hiddenSince = 0;
     }

@@ -528,6 +528,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'revisao' && appData) renderRevisao(appData);
+    if (tab.dataset.tab === 'historico' && appData) renderHistorico(appData);
   });
 });
 
@@ -684,8 +686,8 @@ function renderHubSection(hubItems) {
       : `Fase ${h.phase} de 3 · ${[5,9,11][h.phase-1]}min`;
 
     const countdown = isDue
-      ? `<span class="hub-countdown ready">⚡ REVISAR AGORA</span>`
-      : `<span class="hub-countdown waiting">⏱ ${fmtRemaining(remaining)}</span>`;
+      ? `<span class="hub-countdown ready" data-hub-cd="${h.qid}">⚡ REVISAR AGORA</span>`
+      : `<span class="hub-countdown waiting" data-hub-cd="${h.qid}">⏱ ${fmtRemaining(remaining)}</span>`;
 
     const url = (h.url || '').replace(/'/g, "\\'");
     const qid = h.qid;
@@ -1049,13 +1051,29 @@ async function softRefresh() {
   const revTab = document.querySelector('[data-tab="revisao"]');
   if (revTab) revTab.textContent = totalRev > 0 ? `REVISÃO (${totalRev})` : 'REVISÃO';
 
-  // Se a aba Revisão estiver ativa, re-renderiza a lista
-  if (document.getElementById('panel-revisao').classList.contains('active')) {
-    renderRevisao(fresh);
-  }
+  // Atualiza só os contadores Huberman (sem reconstruir DOM)
+  updateHubCountdowns(fresh.hubQueue || []);
 
   // Status bar
   updateStatusBar();
+}
+
+// Atualiza apenas os textos de contagem regressiva já existentes no DOM
+// sem tocar nos botões — evita o congelamento por reconstrução de DOM
+function updateHubCountdowns(hubItems) {
+  hubItems.forEach(h => {
+    const cd = document.querySelector(`[data-hub-cd="${h.qid}"]`);
+    if (!cd) return;
+    if (h.isDue) {
+      cd.className = 'hub-countdown ready';
+      cd.textContent = '⚡ REVISAR AGORA';
+      const card = cd.closest('.hub-card');
+      if (card && !card.classList.contains('due-now')) card.classList.add('due-now');
+    } else {
+      cd.className = 'hub-countdown waiting';
+      cd.textContent = `⏱ ${fmtRemaining(h.remaining)}`;
+    }
+  });
 }
 
 function setEl(id, txt) {
