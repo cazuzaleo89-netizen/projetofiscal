@@ -307,6 +307,41 @@ async function getTodayStats() {
   return stored[key];
 }
 
+// ── Repositório de questões (acertos E erros) ─────────────────────────────────
+
+async function loadQuestionBank() {
+  const { questionBank } = await getStorage({ questionBank: {} });
+  return questionBank;
+}
+
+async function updateQuestionBank(payload, result) {
+  const { questionBank } = await getStorage({ questionBank: {} });
+  const today = todayKey();
+  const qid = payload.qid || payload.pos?.toString() || 'unknown';
+  if (!qid || qid === 'unknown') return;
+
+  const existing = questionBank[qid] || {
+    qid, url: payload.url || '', materia: payload.materia || '',
+    assunto: payload.assunto || '', desc: payload.desc || ('Questão #' + qid),
+    acertos: 0, erros: 0, firstSeen: today, lastSeen: today, importance: 1
+  };
+
+  existing.lastSeen = today;
+  if (payload.materia) existing.materia = payload.materia;
+  if (payload.assunto) existing.assunto = payload.assunto;
+  if (payload.url) existing.url = payload.url;
+  if (payload.desc) existing.desc = payload.desc;
+
+  if (result === 'correct') existing.acertos++;
+  else existing.erros++;
+
+  // importance: 1=never wrong, 2=wrong once, 3=wrong 2+ times
+  existing.importance = existing.erros === 0 ? 1 : existing.erros === 1 ? 2 : 3;
+
+  questionBank[qid] = existing;
+  await setStorage({ questionBank });
+}
+
 // ── Banco de questões erradas ─────────────────────────────────────────────────
 
 async function loadWrongBank() {
@@ -549,6 +584,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'QUESTION_CORRECT': {
         const payload = msg.payload || {};
         const today = await updateTodayStats({ acertos: 1 });
+        await updateQuestionBank(payload, 'correct');
         if (payload.materia) await updateSubjectStats(payload.materia, 1, 0, payload.assunto);
         await checkDailyGoal(today);
         // Atualiza sessão ativa
@@ -564,6 +600,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       case 'QUESTION_WRONG': {
         const payload = msg.payload || {};
         const today = await updateTodayStats({ erros: 1 });
+        await updateQuestionBank(payload, 'wrong');
         if (payload.materia) await updateSubjectStats(payload.materia, 0, 1, payload.assunto);
         await addToWrongBank(payload);
         // Inicia ciclo Huberman (fase 1 = 5 min)
@@ -735,7 +772,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
       // ── Popup: solicita dados completos ────────────────────────────────────
       case 'GET_POPUP_DATA': {
-        const [todayStats, globalStats, wrongBank, sessions, subjectStats, settings, dueReviews, weekStats] = await Promise.all([
+        const [todayStats, globalStats, wrongBank, sessions, subjectStats, settings, dueReviews, weekStats, questionBank] = await Promise.all([
           getTodayStats(),
           loadStats(),
           loadWrongBank(),
@@ -744,7 +781,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           getSettings(),
           getDueReviews(),
           getWeekStats(),
+          loadQuestionBank(),
         ]);
+        const qbItems = Object.values(questionBank);
         sendResponse({
           todayStats,
           globalStats,
@@ -761,6 +800,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           hubQueue: hubGetStatus(),
           weekStats,
           pomodoro: pomodoroSnapshot(),
+          questionBankStats: {
+            total: qbItems.length,
+            dominadas: qbItems.filter(q => q.importance === 1).length,
+            atencao: qbItems.filter(q => q.importance === 2).length,
+            criticas: qbItems.filter(q => q.importance === 3).length,
+          },
         });
         return;
       }
@@ -771,6 +816,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const due = await getDueReviews();
         updateBadge(due.length);
         sendResponse({ ok: true, dueReviews: due });
+        return;
+      }
+
+      // ── Popup: exporta repositório de questões ────────────────────────────
+      case 'EXPORT_QUESTION_BANK': {
+        const qb = await loadQuestionBank();
+        sendResponse({ bank: Object.values(qb) });
+        return;
+      }
+
+      // ── Popup: stats do repositório de questões ───────────────────────────
+      case 'GET_QUESTION_BANK_STATS': {
+        const qb = await loadQuestionBank();
+        const items = Object.values(qb);
+        sendResponse({
+          total: items.length,
+          dominadas: items.filter(q => q.importance === 1).length,
+          atencao: items.filter(q => q.importance === 2).length,
+          criticas: items.filter(q => q.importance === 3).length,
+        });
         return;
       }
 

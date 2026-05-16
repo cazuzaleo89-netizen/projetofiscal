@@ -515,6 +515,7 @@ function renderConfig(data) {
   document.getElementById('cfg-goal').value = cfgSettings.dailyGoal || 30;
   setToggle('notifications', cfgSettings.notifications !== false);
   setToggle('autoReveal', cfgSettings.autoReveal !== false);
+  renderQBankStats(data.questionBankStats);
 }
 
 function setToggle(id, on) {
@@ -709,6 +710,40 @@ function resetStats() {
   });
 }
 
+// ── Repositório de questões ───────────────────────────────────────────────────
+async function exportQuestionBank() {
+  const r = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'EXPORT_QUESTION_BANK' }, resolve));
+  if (!r || !r.bank) return;
+  const blob = new Blob([JSON.stringify(r.bank, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'painel-fiscal-repositorio.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyQuestionBank() {
+  const r = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'EXPORT_QUESTION_BANK' }, resolve));
+  if (!r || !r.bank) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(r.bank));
+    const btn = document.getElementById('cfg-copy-qbank');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch { alert('Não foi possível copiar. Use o botão Exportar JSON.'); }
+}
+
+function renderQBankStats(stats) {
+  const el = document.getElementById('qbank-stats');
+  if (!el || !stats) return;
+  el.innerHTML = `
+    <span style="font-size:10px;background:#20243a;border-radius:6px;padding:3px 8px;color:#94a3b8;">📚 ${stats.total} questões</span>
+    <span style="font-size:10px;background:rgba(34,197,94,.1);border-radius:6px;padding:3px 8px;color:#22c55e;">🟢 ${stats.dominadas}</span>
+    <span style="font-size:10px;background:rgba(245,158,11,.1);border-radius:6px;padding:3px 8px;color:#f59e0b;">🟡 ${stats.atencao}</span>
+    <span style="font-size:10px;background:rgba(239,68,68,.1);border-radius:6px;padding:3px 8px;color:#ef4444;">🔴 ${stats.criticas}</span>
+  `;
+}
+
 // ── Simulado automático ───────────────────────────────────────────────────────
 async function startSimulado() {
   const r = await new Promise(resolve => chrome.runtime.sendMessage({ type: 'GET_SIMULADO' }, resolve));
@@ -831,6 +866,7 @@ async function softRefresh(force = false) {
     try { renderAprovacao(fresh.todayStats || {}, fresh.settings); } catch (e) { /* */ }
     try { renderPriorityList(fresh.subjectStats || []); } catch (e) { /* */ }
     try { renderWeekChart(fresh.weekStats); } catch (e) { /* */ }
+    try { renderQBankStats(fresh.questionBankStats); } catch (e) { /* */ }
 
     // Atualiza pomodoro se mudou estado
     if (fresh.pomodoro && fresh.pomodoro.active !== pomData.active) {
@@ -877,6 +913,8 @@ document.getElementById('cfg-save').addEventListener('click', saveConfig);
 document.getElementById('cfg-export-json').addEventListener('click', exportWrong);
 document.getElementById('cfg-export-csv').addEventListener('click', exportCSV);
 document.getElementById('cfg-reset').addEventListener('click', resetStats);
+document.getElementById('cfg-export-qbank').addEventListener('click', exportQuestionBank);
+document.getElementById('cfg-copy-qbank').addEventListener('click', copyQuestionBank);
 
 // Pomodoro buttons
 document.getElementById('pom-tog').addEventListener('click', pomodoroToggle);
