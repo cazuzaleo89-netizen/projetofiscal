@@ -118,6 +118,146 @@ function accColor(rate) {
   return '#ef4444';
 }
 
+// ── Alerta de fadiga ─────────────────────────────────────────────────────────
+function renderFatigueAlert(recentResults, todayStats) {
+  const el = document.getElementById('fatigue-alert-pop');
+  if (!el) return;
+  const total = (todayStats.acertos || 0) + (todayStats.erros || 0);
+  if (total < 6 || !recentResults || recentResults.length < 5) { el.style.display = 'none'; return; }
+  const overall = (todayStats.acertos || 0) / total;
+  const last5 = recentResults.slice(-5);
+  const recentRate = last5.filter(r => r === 'correct').length / 5;
+  if (overall >= 0.58 && recentRate <= 0.35) {
+    el.textContent = `⚠️ Queda de rendimento — últimas 5 questões: ${Math.round(recentRate * 100)}% acerto (geral: ${Math.round(overall * 100)}%). Pause 5-10 min. [×]`;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ── Gráfico por hora do dia ───────────────────────────────────────────────────
+let _hrPopMode = 'q';
+function hrPopMode(mode) {
+  _hrPopMode = mode;
+  document.getElementById('hr-btn-q').style.background    = mode === 'q'    ? 'rgba(74,108,247,.15)' : 'transparent';
+  document.getElementById('hr-btn-q').style.color         = mode === 'q'    ? '#6366f1' : '#475569';
+  document.getElementById('hr-btn-rate').style.background = mode === 'rate' ? 'rgba(74,108,247,.15)' : 'transparent';
+  document.getElementById('hr-btn-rate').style.color      = mode === 'rate' ? '#6366f1' : '#475569';
+  if (appData) renderHourlyChart(appData.hourlyStats);
+}
+
+function renderHourlyChart(hourlyStats) {
+  const el  = document.getElementById('pop-hourly-chart');
+  const ins = document.getElementById('pop-hourly-insight');
+  if (!el || !hourlyStats) return;
+
+  // Only show hours 5–23
+  const buckets = [];
+  for (let h = 5; h <= 23; h++) {
+    const b = hourlyStats[h] || { q: 0, ace: 0 };
+    buckets.push({ h, q: b.q, rate: b.q > 0 ? Math.round(b.ace / b.q * 100) : null });
+  }
+
+  const isRate = _hrPopMode === 'rate';
+  const vals   = buckets.map(b => isRate ? (b.rate !== null ? b.rate : 0) : b.q);
+  const maxVal = isRate ? 100 : Math.max(...vals, 1);
+  const H = 42;
+
+  let html = `<div style="display:flex;align-items:flex-end;gap:1px;height:${H}px;">`;
+  buckets.forEach((b, i) => {
+    const v   = vals[i];
+    const pct = maxVal > 0 ? Math.max(v / maxVal, v > 0 ? 0.05 : 0) : 0;
+    const hPx = Math.round(pct * H);
+    const col = isRate
+      ? (b.rate !== null ? (b.rate >= 70 ? '#22c55e' : b.rate >= 50 ? '#f59e0b' : '#ef4444') : 'rgba(255,255,255,.04)')
+      : '#4a6cf7';
+    const hasData = isRate ? b.rate !== null : v > 0;
+    const tip = isRate ? `${b.h}h: ${b.rate !== null ? b.rate + '%' : '—'}` : `${b.h}h: ${v}q`;
+    html += `<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:1px;" title="${tip}">
+      <div style="width:100%;border-radius:2px 2px 0 0;height:${hPx}px;background:${hasData ? col : 'rgba(255,255,255,.04)'};"></div>
+      <div style="font-size:6px;color:#374151;font-family:monospace;">${b.h}</div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+
+  if (ins) {
+    if (isRate) {
+      const valid = buckets.filter(b => b.rate !== null && b.q >= 2);
+      if (valid.length) {
+        const best = valid.reduce((a, b) => b.rate > a.rate ? b : a, valid[0]);
+        ins.textContent = `Melhor aproveitamento: ${best.h}h (${best.rate}%)`;
+      } else ins.textContent = 'Resolva mais questões para ver análise';
+    } else {
+      const best = buckets.reduce((a, b) => b.q > a.q ? b : a, buckets[0]);
+      ins.textContent = best.q > 0 ? `Hora mais produtiva hoje: ${best.h}h (${best.q} questões)` : 'Sem questões registradas hoje';
+    }
+  }
+}
+
+// ── Timer Huberman Manual ─────────────────────────────────────────────────────
+let _manHubLabel = '';
+let _manHubLocal = null;  // interval para countdown local no popup
+
+function manHubStart(mins, label) {
+  if (!mins || isNaN(mins) || mins < 1) return;
+  _manHubLabel = label || (mins + ' min');
+  chrome.runtime.sendMessage({ type: 'MANUAL_HUB_START', mins, label: _manHubLabel }, resp => {
+    if (resp && resp.ok) {
+      document.getElementById('man-hub-result').style.display = 'none';
+      renderManHubTimer(resp.timer);
+      clearInterval(_manHubLocal);
+      _manHubLocal = setInterval(() => {
+        chrome.runtime.sendMessage({ type: 'MANUAL_HUB_GET' }, t => { if (t) renderManHubTimer(t); });
+      }, 1000);
+    }
+  });
+}
+
+function manHubCancel() {
+  clearInterval(_manHubLocal);
+  chrome.runtime.sendMessage({ type: 'MANUAL_HUB_CANCEL' }, () => {
+    document.getElementById('man-hub-active').style.display = 'none';
+    document.getElementById('man-hub-result').style.display = 'none';
+  });
+}
+
+function manHubResult(remembered) {
+  chrome.runtime.sendMessage({ type: 'HUB_REVIEW_RESULT', label: _manHubLabel, remembered }, () => {});
+  document.getElementById('man-hub-result').style.display = 'none';
+  // Pequeno flash visual
+  const active = document.getElementById('man-hub-active');
+  if (active) active.style.display = 'none';
+}
+
+function renderManHubTimer(t) {
+  const activeEl = document.getElementById('man-hub-active');
+  const resultEl = document.getElementById('man-hub-result');
+  if (!activeEl) return;
+  if (!t || !t.running) {
+    if (t && t.running === false && _manHubLocal) {
+      // Timer terminou
+      clearInterval(_manHubLocal); _manHubLocal = null;
+      activeEl.style.display = 'none';
+      if (resultEl) resultEl.style.display = 'block';
+    }
+    return;
+  }
+  activeEl.style.display = 'flex';
+  const lbl  = document.getElementById('man-hub-lbl');
+  const disp = document.getElementById('man-hub-display');
+  const m    = Math.floor(t.remaining / 60);
+  const s    = t.remaining % 60;
+  if (lbl)  lbl.textContent  = t.label || '';
+  if (disp) disp.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  // Detectar conclusão
+  if (t.remaining === 0) {
+    clearInterval(_manHubLocal); _manHubLocal = null;
+    activeEl.style.display = 'none';
+    if (resultEl) resultEl.style.display = 'block';
+  }
+}
+
 // ── Gráfico semanal ──────────────────────────────────────────────────────────
 function renderWeekChart(weekStats) {
   const el = document.getElementById('week-chart');
@@ -584,6 +724,9 @@ async function loadAll() {
   try { renderConfig(appData); }   catch(e) { console.error('renderConfig', e); }
   try { initPopTimer(appData.timer); } catch(e) { console.error('initPopTimer', e); }
   try { if (appData.pomodoro) initPomodoro(appData.pomodoro); } catch(e) { console.error('initPomodoro', e); }
+  try { renderHourlyChart(appData.hourlyStats); } catch(e) { /* */ }
+  try { renderFatigueAlert(appData.recentResults || [], appData.todayStats || {}); } catch(e) { /* */ }
+  try { renderManHubTimer(appData.manualHubTimer); } catch(e) { /* */ }
   updateStatusBar(); // dispara async sem bloquear o resto do loadAll
 
   // Badge de revisões (banco + sessão atual)
@@ -862,11 +1005,14 @@ async function softRefresh(force = false) {
     // Atualiza só os contadores Huberman (sem reconstruir DOM)
     updateHubCountdowns(fresh.hubQueue || []);
 
-    // Atualiza aprovação, prioridade e gráfico semanal
+    // Atualiza aprovação, prioridade, gráficos e alertas
     try { renderAprovacao(fresh.todayStats || {}, fresh.settings); } catch (e) { /* */ }
     try { renderPriorityList(fresh.subjectStats || []); } catch (e) { /* */ }
     try { renderWeekChart(fresh.weekStats); } catch (e) { /* */ }
     try { renderQBankStats(fresh.questionBankStats); } catch (e) { /* */ }
+    try { renderHourlyChart(fresh.hourlyStats); } catch (e) { /* */ }
+    try { renderFatigueAlert(fresh.recentResults || [], fresh.todayStats || {}); } catch (e) { /* */ }
+    try { if (fresh.manualHubTimer && !_manHubLocal) renderManHubTimer(fresh.manualHubTimer); } catch (e) { /* */ }
 
     // Atualiza pomodoro se mudou estado
     if (fresh.pomodoro && fresh.pomodoro.active !== pomData.active) {

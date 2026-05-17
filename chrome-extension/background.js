@@ -15,6 +15,23 @@ let tecTabId    = null;
 let filaCount   = 0;
 let activeSession = null;  // sessão corrente (não persistida ainda)
 
+// ── Estatísticas por hora do dia (em memória, reset diário) ──────────────
+let _hourlyDay = '';
+let hourlyStats = Array(24).fill(null).map(() => ({ q: 0, ace: 0 }));
+function _ensureHourlyDay() {
+  const today = todayKey();
+  if (_hourlyDay !== today) { _hourlyDay = today; hourlyStats = Array(24).fill(null).map(() => ({ q: 0, ace: 0 })); }
+}
+
+// ── Timer Huberman Manual (5/9/11min) ────────────────────────────────────
+let manualHubTimer = { running: false, label: '', totalSecs: 0, startTs: null };
+const MAN_HUB_ALARM = 'pf_manual_hub_review';
+function manualHubSnapshot() {
+  if (!manualHubTimer.running) return { running: false };
+  const remaining = Math.max(0, manualHubTimer.totalSecs - Math.floor((Date.now() - manualHubTimer.startTs) / 1000));
+  return { running: true, label: manualHubTimer.label, totalSecs: manualHubTimer.totalSecs, remaining };
+}
+
 // ════════════════════════════════════════════════════════
 // MÉTODO HUBERMAN — Fila de revisão em curto prazo
 // Protocolo: 5min → 9min → 11min → custom → SM-2 longo prazo
@@ -587,7 +604,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await updateQuestionBank(payload, 'correct');
         if (payload.materia) await updateSubjectStats(payload.materia, 1, 0, payload.assunto);
         await checkDailyGoal(today);
-        // Atualiza sessão ativa
+        _ensureHourlyDay(); const _h1 = new Date().getHours(); hourlyStats[_h1].q++; hourlyStats[_h1].ace++;
         if (activeSession) {
           activeSession.acertos = (activeSession.acertos || 0) + 1;
           activeSession.questions = activeSession.questions || [];
@@ -603,11 +620,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         await updateQuestionBank(payload, 'wrong');
         if (payload.materia) await updateSubjectStats(payload.materia, 0, 1, payload.assunto);
         await addToWrongBank(payload);
-        // Inicia ciclo Huberman (fase 1 = 5 min)
         if (payload.qid) hubSchedule(payload, 1);
-        // Badge = total de revisões devidas
         const due = await getDueReviews();
         updateBadge(due.length + hubQueue.length);
+        _ensureHourlyDay(); const _h2 = new Date().getHours(); hourlyStats[_h2].q++;
         if (activeSession) {
           activeSession.erros = (activeSession.erros || 0) + 1;
           activeSession.questions = activeSession.questions || [];
@@ -771,6 +787,35 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
 
       // ── Popup: solicita dados completos ────────────────────────────────────
+      // ── Timer Huberman manual (5/9/11min) ─────────────────────────────────
+      case 'MANUAL_HUB_START': {
+        const mins = Math.max(1, Math.min(120, msg.mins || 5));
+        manualHubTimer = { running: true, label: msg.label || (mins + ' min'), totalSecs: mins * 60, startTs: Date.now() };
+        chrome.alarms.clear(MAN_HUB_ALARM);
+        chrome.alarms.create(MAN_HUB_ALARM, { delayInMinutes: mins });
+        sendResponse({ ok: true, timer: manualHubSnapshot() });
+        return;
+      }
+      case 'MANUAL_HUB_CANCEL': {
+        chrome.alarms.clear(MAN_HUB_ALARM);
+        manualHubTimer.running = false;
+        sendResponse({ ok: true });
+        return;
+      }
+      case 'MANUAL_HUB_GET': {
+        sendResponse(manualHubSnapshot());
+        return;
+      }
+      // ── Resultado de revisão Huberman manual ──────────────────────────────
+      case 'HUB_REVIEW_RESULT': {
+        const stored = (await new Promise(r => chrome.storage.local.get('pf_hub_reviews', r)))['pf_hub_reviews'] || [];
+        stored.push({ ts: Date.now(), label: msg.label || '', remembered: !!msg.remembered });
+        if (stored.length > 300) stored.splice(0, stored.length - 300);
+        await new Promise(r => chrome.storage.local.set({ pf_hub_reviews: stored }, r));
+        sendResponse({ ok: true });
+        return;
+      }
+
       case 'GET_POPUP_DATA': {
         const [todayStats, globalStats, wrongBank, sessions, subjectStats, settings, dueReviews, weekStats, questionBank] = await Promise.all([
           getTodayStats(),
@@ -800,6 +845,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           hubQueue: hubGetStatus(),
           weekStats,
           pomodoro: pomodoroSnapshot(),
+          hourlyStats,
+          manualHubTimer: manualHubSnapshot(),
+          recentResults: activeSession ? (activeSession.questions || []).slice(-10).map(q => q.result) : [],
           questionBankStats: {
             total: qbItems.length,
             dominadas: qbItems.filter(q => q.importance === 1).length,
@@ -908,6 +956,14 @@ chrome.runtime.onInstalled.addListener(async () => {
 // ════════════════════════════════════════════════════════
 
 chrome.alarms.onAlarm.addListener(async alarm => {
+
+  // ── Huberman manual: timer concluído ─────────────────────────────────────
+  if (alarm.name === MAN_HUB_ALARM) {
+    const lbl = manualHubTimer.label || 'Revisão';
+    manualHubTimer.running = false;
+    showNotification('🧠 Revisão Huberman Manual', `Hora de revisar! ${lbl} concluídos.`, 'hub-manual-done');
+    return;
+  }
 
   // ── Huberman: alarme de revisão disparou ──────────────────────────────────
   if (alarm.name.startsWith('hub-')) {
