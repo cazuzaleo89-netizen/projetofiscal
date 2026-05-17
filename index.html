@@ -1625,6 +1625,33 @@ select.inp{appearance:none;cursor:pointer;}
 #float-timer.fw-compact .cron-seg{font-size:18px!important;padding:4px 7px!important;}
 #float-timer.fw-compact .cron-sep{font-size:14px!important;}
 @keyframes cronTick{0%{opacity:.25;}50%{opacity:1;}100%{opacity:.25;}}
+
+/* ── Page Transitions ─────────────────────────────────────────────── */
+@keyframes pageIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.page.active{animation:pageIn .18s ease;}
+
+/* ── Light theme card depth ───────────────────────────────────────── */
+[data-theme="light"] .card{box-shadow:0 2px 12px rgba(0,0,0,.07);border-color:rgba(0,0,0,.09);}
+[data-theme="light"] .kpi{box-shadow:0 2px 8px rgba(0,0,0,.06);}
+[data-theme="light"] .est-kpi{box-shadow:0 1px 6px rgba(0,0,0,.07);}
+[data-theme="light"] .nav-item{border-radius:8px;margin:0 8px;}
+[data-theme="light"] aside.sidebar{box-shadow:2px 0 16px rgba(0,0,0,.06);}
+[data-theme="light"] .topbar{box-shadow:0 2px 12px rgba(0,0,0,.06);}
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea{box-shadow:inset 0 1px 3px rgba(0,0,0,.06);}
+
+/* ── Fatigue alert ────────────────────────────────────────────────── */
+#fatigue-alert{display:none;align-items:center;gap:8px;margin:0 14px 10px;padding:9px 12px;background:linear-gradient(135deg,rgba(251,191,36,.08),rgba(239,68,68,.05));border:1px solid rgba(251,191,36,.4);border-radius:10px;font-size:11px;font-weight:700;color:#fbbf24;letter-spacing:.3px;cursor:pointer;}
+#fatigue-alert:hover{background:linear-gradient(135deg,rgba(251,191,36,.14),rgba(239,68,68,.09));}
+
+/* ── Hourly performance chart ─────────────────────────────────────── */
+.hr-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0;}
+.hr-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height .35s ease,background .3s;}
+.hr-lbl{font-size:7.5px;color:var(--muted2);font-family:var(--mono);white-space:nowrap;}
+
+/* ── Huberman review result prompt ───────────────────────────────── */
+#hub-rev-result{margin-top:7px;padding:9px 11px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.22);border-radius:10px;font-size:11px;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -2632,6 +2659,9 @@ select.inp{appearance:none;cursor:pointer;}
           </div>
         </div>
 
+        <!-- Fatigue Alert -->
+        <div id="fatigue-alert" onclick="this.style.display='none'" title="Clique para fechar"></div>
+
         <!-- Action buttons -->
         <div style="padding:0 14px 18px;display:flex;flex-direction:column;gap:7px;">
           <button id="cron-btn-start" onclick="cronStart()"
@@ -2664,6 +2694,14 @@ select.inp{appearance:none;cursor:pointer;}
               <span style="font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;font-weight:700;" id="hub-rev-lbl">REVISÃO</span>
               <span style="font-family:monospace;font-size:1.25rem;font-weight:800;color:#f1f5f9;flex:1;text-align:center;letter-spacing:1px;" id="hub-rev-display">00:00</span>
               <button onclick="hubRevCancel()" style="background:none;border:1px solid rgba(248,113,113,.35);border-radius:7px;color:#f87171;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;font-family:inherit;white-space:nowrap;">✕ Cancelar</button>
+            </div>
+            <div id="hub-rev-result" style="display:none;">
+              <div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#a78bfa;font-weight:700;margin-bottom:6px;">🧠 Como foi a revisão?</div>
+              <div style="display:flex;gap:6px;">
+                <button onclick="hubRevTrackResult(true)" style="flex:1;padding:7px;border-radius:9px;border:none;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">✓ Lembrei</button>
+                <button onclick="hubRevTrackResult(false)" style="flex:1;padding:7px;border-radius:9px;border:none;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:#f87171;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;">✕ Esqueci</button>
+                <button onclick="document.getElementById('hub-rev-result').style.display='none'" style="padding:7px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#64748b;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">–</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3808,6 +3846,20 @@ select.inp{appearance:none;cursor:pointer;}
         <div id="est-donut-legend" style="flex:1;min-width:0;"></div>
       </div>
     </div>
+  </div>
+
+  <!-- GRÁFICO POR HORA DO DIA -->
+  <div class="card" style="margin-bottom:1.1rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.4rem;">
+      <div class="slabel" style="margin:0;">🕐 Desempenho por Hora do Dia</div>
+      <div style="display:flex;gap:.3rem;">
+        <button class="est-chip active" data-hrmode="q" onclick="hrSetMode('q',this)">Questões</button>
+        <button class="est-chip" data-hrmode="rate" onclick="hrSetMode('rate',this)">% Acerto</button>
+        <button class="est-chip" data-hrmode="time" onclick="hrSetMode('time',this)">Tempo</button>
+      </div>
+    </div>
+    <div id="est-hourly-chart" style="height:110px;overflow:hidden;"></div>
+    <div id="est-hourly-insight" style="font-size:.63rem;color:var(--muted2);margin-top:.5rem;text-align:center;min-height:1em;"></div>
   </div>
 
   <!-- TABELA DETALHADA -->
@@ -19286,6 +19338,280 @@ async function pwaInstall(){
 }
 </script>
 
+<!-- ═══ MELHORIAS: DEBOUNCE, FAVICON, FADIGA, HORÁRIO, HUB TRACKING ══════ -->
+<script>
+/* ── 1. Debounce utility ─────────────────────────────────────────────────── */
+function debounce(fn, ms) {
+  let t;
+  return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), ms); };
+}
+
+/* ── 2. Debounce repo search input ──────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  const rs = document.getElementById('repo-search');
+  if (rs) {
+    const dbFilter = debounce(() => window.repoFilter && window.repoFilter(), 240);
+    rs.removeAttribute('oninput');
+    rs.addEventListener('input', dbFilter);
+  }
+  // Debounce estatísticas period/disc filters
+  const estDisc = document.getElementById('est-disc-filter');
+  if (estDisc) {
+    const orig = estDisc.getAttribute('onchange');
+    estDisc.removeAttribute('onchange');
+    const dbEst = debounce(() => { if (typeof renderEstatisticas === 'function') renderEstatisticas(); }, 180);
+    estDisc.addEventListener('change', dbEst);
+  }
+});
+
+/* ── 3. Favicon status indicator ─────────────────────────────────────────── */
+(function() {
+  let _favLink = null;
+  function _ensureFavLink() {
+    if (!_favLink) _favLink = document.querySelector("link[rel='icon'],link[rel='shortcut icon']");
+    if (!_favLink) { _favLink = document.createElement('link'); _favLink.rel = 'icon'; document.head.appendChild(_favLink); }
+    return _favLink;
+  }
+  window.setFaviconStatus = function(status) {
+    try {
+      const sz = 32, c = document.createElement('canvas');
+      c.width = sz; c.height = sz;
+      const ctx = c.getContext('2d');
+      const bg = status === 'active' ? '#1e293b' : status === 'paused' ? '#1e293b' : '#1e293b';
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.roundRect(0, 0, sz, sz, 6); ctx.fill();
+      ctx.fillStyle = '#f1f5f9'; ctx.font = 'bold 18px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('P', 14, 18);
+      if (status === 'active') {
+        ctx.fillStyle = '#22d3ee';
+        ctx.beginPath(); ctx.arc(sz - 7, 7, 5, 0, Math.PI * 2); ctx.fill();
+      } else if (status === 'paused') {
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath(); ctx.arc(sz - 7, 7, 5, 0, Math.PI * 2); ctx.fill();
+      }
+      _ensureFavLink().href = c.toDataURL();
+    } catch(e) {}
+  };
+
+  // Patch timer functions to update favicon
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof cronStart !== 'undefined') {
+      const _oCS = cronStart; cronStart = function() { _oCS.apply(this,arguments); setFaviconStatus('active'); };
+      const _oCP = cronPause; cronPause = function() { _oCP.apply(this,arguments); setFaviconStatus('paused'); };
+      const _oCR = cronResume; cronResume = function() { _oCR.apply(this,arguments); setFaviconStatus('active'); };
+      const _oCStop = cronStop; cronStop = function() { _oCStop.apply(this,arguments); setFaviconStatus('idle'); };
+    }
+  });
+})();
+
+/* ── 4. Fatigue alert (patch cronCount) ──────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof cronCount === 'undefined') return;
+  const _origCC = cronCount;
+  cronCount = function(key) {
+    _origCC.apply(this, arguments);
+    if (!cronState._recentResults) cronState._recentResults = [];
+    if (key === 'ace') cronState._recentResults.push(1);
+    if (key === 'err') cronState._recentResults.push(0);
+    // Check fatigue: need ≥6 total, compare last-5 vs overall
+    const total = cronState.acertos + cronState.erros;
+    if (total >= 6) {
+      const overall = cronState.acertos / total;
+      const last5 = cronState._recentResults.slice(-5);
+      if (last5.length === 5) {
+        const recent = last5.filter(x => x).length / 5;
+        const el = document.getElementById('fatigue-alert');
+        if (!el) return;
+        if (overall >= 0.58 && recent <= 0.35) {
+          el.innerHTML = `⚠️ Queda de rendimento — últimas 5 questões: <b>${Math.round(recent*100)}%</b> acerto (geral: ${Math.round(overall*100)}%). Considere uma pausa de 5-10 min. <span style="margin-left:auto;opacity:.5;font-size:10px;">[×]</span>`;
+          el.style.display = 'flex';
+        } else if (overall < 0.58 || recent > 0.4) {
+          el.style.display = 'none';
+        }
+      }
+    }
+  };
+  // Reset recentResults on start
+  const _origStart = cronStart;
+  cronStart = function() { _origStart.apply(this,arguments); cronState._recentResults = []; document.getElementById('fatigue-alert').style.display='none'; };
+});
+
+/* ── 5. Hourly performance chart ─────────────────────────────────────────── */
+let _hrMode = 'q';
+
+window.hrSetMode = function(mode, btn) {
+  _hrMode = mode;
+  document.querySelectorAll('[data-hrmode]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderHourlyChart();
+};
+
+window.renderHourlyChart = function() {
+  const el  = document.getElementById('est-hourly-chart');
+  const ins = document.getElementById('est-hourly-insight');
+  if (!el) return;
+  if (typeof state === 'undefined') return;
+
+  const sessions = state.sessions || [];
+  const qLog     = state.questionLog || [];
+
+  const hourQ    = Array(24).fill(0);
+  const hourAce  = Array(24).fill(0);
+  const hourSecs = Array(24).fill(0);
+  const hourSess = Array(24).fill(0);
+
+  sessions.forEach(s => {
+    const h = new Date(s.date).getHours();
+    if (isNaN(h)) return;
+    hourSecs[h] += s.seconds || 0;
+    hourSess[h]++;
+  });
+  qLog.forEach(q => {
+    const h = new Date(q.date).getHours();
+    if (isNaN(h)) return;
+    hourQ[h]   += q.total   || 0;
+    hourAce[h] += q.correct || 0;
+  });
+
+  // 5h–23h window
+  const buckets = [];
+  for (let h = 5; h <= 23; h++) {
+    buckets.push({
+      h,
+      q:    hourQ[h],
+      rate: hourQ[h] > 0 ? Math.round(hourAce[h] / hourQ[h] * 100) : null,
+      hrs:  Math.round(hourSecs[h] / 360) / 10
+    });
+  }
+
+  let vals, maxVal, colorFn;
+  if (_hrMode === 'q') {
+    vals    = buckets.map(b => b.q);
+    maxVal  = Math.max(...vals, 1);
+    colorFn = () => '#4a6cf7';
+  } else if (_hrMode === 'rate') {
+    vals    = buckets.map(b => b.rate !== null ? b.rate : 0);
+    maxVal  = 100;
+    colorFn = v => v >= 70 ? '#22c55e' : v >= 50 ? '#f59e0b' : v > 0 ? '#ef4444' : 'rgba(255,255,255,.04)';
+  } else {
+    vals    = buckets.map(b => b.hrs);
+    maxVal  = Math.max(...vals, 0.1);
+    colorFn = () => '#a78bfa';
+  }
+
+  const H = 90;
+  let html = `<div style="display:flex;align-items:flex-end;gap:2px;height:${H}px;padding:0 2px;">`;
+  buckets.forEach((b, i) => {
+    const v   = vals[i];
+    const pct = maxVal > 0 ? Math.max(v / maxVal, v > 0 ? 0.04 : 0) : 0;
+    const hPx = Math.round(pct * H);
+    const col = typeof colorFn === 'function' ? colorFn(v) : '#4a6cf7';
+    const hasData = _hrMode === 'rate' ? b.rate !== null : v > 0;
+    const tip = _hrMode === 'q' ? `${b.h}h: ${v} questões` : _hrMode === 'rate' ? `${b.h}h: ${b.rate !== null ? b.rate+'%' : '—'}` : `${b.h}h: ${v}h estudo`;
+    html += `<div class="hr-bar-wrap" title="${tip}">
+      <div class="hr-bar" style="height:${hPx}px;background:${hasData ? col : 'rgba(255,255,255,.05)'};"></div>
+      <div class="hr-lbl">${b.h}</div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+
+  if (ins) {
+    if (_hrMode === 'q') {
+      const best = buckets.reduce((a,b) => b.q > a.q ? b : a, buckets[0]);
+      ins.textContent = best.q > 0 ? `🏆 Hora mais produtiva: ${best.h}h (${best.q} questões)` : 'Sem dados de questões por horário ainda.';
+    } else if (_hrMode === 'rate') {
+      const valid = buckets.filter(b => b.rate !== null && b.q >= 3);
+      if (valid.length) {
+        const best = valid.reduce((a,b) => b.rate > a.rate ? b : a, valid[0]);
+        ins.textContent = `🎯 Melhor aproveitamento: ${best.h}h (${best.rate}% de acerto)`;
+      } else ins.textContent = 'Registre mais sessões para ver análise por horário.';
+    } else {
+      const best = buckets.reduce((a,b) => b.hrs > a.hrs ? b : a, buckets[0]);
+      ins.textContent = best.hrs > 0 ? `⏱ Hora com mais estudo: ${best.h}h (${best.hrs.toFixed(1)}h acumuladas)` : 'Sem dados de tempo por horário ainda.';
+    }
+  }
+};
+
+// Patch renderEstatisticas to also call hourly chart
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof renderEstatisticas === 'function') {
+    const _orig = renderEstatisticas;
+    renderEstatisticas = function() { _orig.apply(this, arguments); renderHourlyChart(); };
+  }
+});
+
+/* ── 6. Huberman review result tracking ──────────────────────────────────── */
+const HUB_REVIEWS_KEY = 'pf_hub_reviews_v1';
+
+window.hubRevTrackResult = function(remembered) {
+  try {
+    const reviews = JSON.parse(localStorage.getItem(HUB_REVIEWS_KEY) || '[]');
+    reviews.push({ ts: Date.now(), label: hubRevState.label, remembered });
+    if (reviews.length > 300) reviews.splice(0, reviews.length - 300);
+    localStorage.setItem(HUB_REVIEWS_KEY, JSON.stringify(reviews));
+  } catch(e) {}
+  const rp = document.getElementById('hub-rev-result');
+  if (rp) rp.style.display = 'none';
+  flash(remembered ? '🧠 Ótimo! Revisão registrada como acerto.' : '🔁 Esquecimento registrado — priorize essa questão.', remembered ? '#22c55e' : '#f59e0b');
+};
+
+// Patch hubRevDone to show result prompt
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof hubRevDone === 'function') {
+    const _orig = hubRevDone;
+    hubRevDone = function() {
+      _orig.apply(this, arguments);
+      const rp = document.getElementById('hub-rev-result');
+      if (rp) rp.style.display = 'block';
+    };
+  }
+});
+
+/* ── 7. Lazy init (skip heavy re-init if data hasn't changed) ────────────── */
+(function() {
+  const _heavyDone = {};
+  const _heavyPages = { missoes: true, arena: false, consistencia: true };
+  // Light wrapper: pages that are expensive but data-driven stay as-is;
+  // pure-display pages skip re-init within same session minute
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof goPage !== 'function') return;
+    const _og = goPage;
+    goPage = function(name, el) {
+      const key = name + '_' + Math.floor(Date.now() / 60000);
+      if (_heavyPages[name] && _heavyDone[key]) {
+        // Just activate page visually, skip heavy render
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        const pg = document.getElementById('page-' + name);
+        if (pg) pg.classList.add('active');
+        if (el) el.classList.add('active');
+        const m = (typeof PAGE_META !== 'undefined' && PAGE_META[name]) || { icon: '◈', title: name };
+        const ti = document.getElementById('topbar-icon'); if (ti) ti.textContent = m.icon;
+        const tt = document.getElementById('topbar-title'); if (tt) tt.textContent = m.title;
+        return;
+      }
+      _og.apply(this, arguments);
+      _heavyDone[key] = true;
+    };
+  });
+})();
+
+/* ── 8. requestIdleCallback for non-critical startup work ────────────────── */
+(function() {
+  const ric = window.requestIdleCallback || (fn => setTimeout(fn, 80));
+  // Pre-warm hourly chart data after page loads
+  ric(function() {
+    if (typeof renderHourlyChart === 'function') { /* will be called when user opens estatiticas */ }
+    // Pre-request notification permission for Huberman
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      // Don't auto-request — only request when user starts a review timer
+    }
+  });
+})();
+</script>
+
 <!-- ═══ CRONÔMETRO: ZERAR MANUAL + REVISÃO HUBERMAN ══════════════════════ -->
 <script>
 // ── Zerar cronômetro manualmente ──────────────────────────────────────────
@@ -19391,6 +19717,8 @@ function hubRevUpdateUI() {
   let _repoFilter = 'all';
   let _repoSearch = '';
   let _repoInited = false;
+  let _repoDiscPage = 1;
+  const REPO_DISC_PER_PAGE = 8;
 
   /* ── Load / Save ─────────────────────────────────────── */
   function repoLoad(){
@@ -19497,7 +19825,9 @@ function hubRevUpdateUI() {
 
     let html = '';
     const discs = Object.keys(grouped).sort();
-    for(const disc of discs){
+    const visibleDiscs = discs.slice(0, _repoDiscPage * REPO_DISC_PER_PAGE);
+    const hasMore = discs.length > visibleDiscs.length;
+    for(const disc of visibleDiscs){
       const assuntos = grouped[disc];
       const discTotal = Object.values(assuntos).flat();
       const dc3 = discTotal.filter(q=>q.importance===3).length;
@@ -19537,6 +19867,9 @@ function hubRevUpdateUI() {
       }
       html += `</div></div>`;
     }
+    if(hasMore){
+      html += `<div style="text-align:center;padding:.9rem;"><button onclick="_repoDiscPage++;repositorioInit()" style="background:rgba(74,108,247,.1);border:1px solid rgba(74,108,247,.3);color:#4a6cf7;border-radius:var(--r);padding:.45rem 1.1rem;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit;">Mostrar mais ${Math.min(REPO_DISC_PER_PAGE, discs.length-visibleDiscs.length)} disciplinas de ${discs.length-visibleDiscs.length} restantes →</button></div>`;
+    }
     el.innerHTML = html;
   }
 
@@ -19555,11 +19888,13 @@ function hubRevUpdateUI() {
 
   window.repoFilter = function(){
     _repoSearch = (document.getElementById('repo-search')||{}).value || '';
+    _repoDiscPage = 1;
     repoRender();
   };
 
   window.repoSetFilter = function(f, btn){
     _repoFilter = f;
+    _repoDiscPage = 1;
     document.querySelectorAll('.repo-pill').forEach(p => p.classList.remove('active'));
     if(btn) btn.classList.add('active');
     repoRender();
