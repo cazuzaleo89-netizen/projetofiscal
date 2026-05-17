@@ -1608,6 +1608,9 @@ select.inp{appearance:none;cursor:pointer;}
 /* ══ CRONÔMETRO NOVO ════════════════════════ */
 .cron-preset{padding:5px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#1f2937;color:#9ca3af;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;transition:all .15s;}
 .cron-preset:hover,.cron-preset.active{background:rgba(74,108,247,.12);border-color:rgba(74,108,247,.4);color:#4a6cf7;}
+.hub-rev-btn{padding:5px 10px;border-radius:8px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.08);color:#a78bfa;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;transition:all .15s;}
+.hub-rev-btn:hover{background:rgba(167,139,250,.2);border-color:rgba(167,139,250,.55);color:#c4b5fd;}
+.hub-rev-btn.hub-rev-active-btn{background:rgba(167,139,250,.22);border-color:#a78bfa;}
 .cron-segmented{display:flex;align-items:center;justify-content:center;gap:6px;font-family:'JetBrains Mono','Fira Code','Courier New',monospace;line-height:1;font-variant-numeric:tabular-nums;}
 .cron-seg{display:inline-flex;align-items:center;justify-content:center;min-width:1.7em;padding:8px 10px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.07);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 4px 18px rgba(0,0,0,.35);font-size:clamp(34px,9.5vw,52px);font-weight:300;color:#f1f5f9;letter-spacing:1px;text-shadow:0 0 22px rgba(74,108,247,.32);transition:transform .25s ease;}
 .cron-sep{font-size:clamp(28px,8vw,44px);font-weight:200;color:#475569;opacity:.7;animation:cronTick 1s steps(2,end) infinite paused;}
@@ -2641,6 +2644,27 @@ select.inp{appearance:none;cursor:pointer;}
             <button id="cron-btn-pause" style="display:none;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#f1f5f9;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;" onclick="cronPause()">⏸ PAUSAR</button>
             <button id="cron-btn-resume" style="display:none;padding:11px;border-radius:12px;border:1px solid rgba(34,211,238,.35);background:rgba(34,211,238,.08);color:#22d3ee;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;" onclick="cronResume()">▶ RETOMAR</button>
             <button id="cron-btn-stop" style="display:none;padding:11px;border-radius:12px;border:none;background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 3px 14px rgba(239,68,68,.3);" onclick="cronStop()">■ ENCERRAR</button>
+            <button id="cron-btn-reset" style="display:none;padding:11px;border-radius:12px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.07);color:#a78bfa;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;" onclick="cronReset()">🔄 ZERAR</button>
+          </div>
+        </div>
+
+        <!-- REVISÃO HUBERMAN -->
+        <div style="padding:0 14px 16px;">
+          <div style="border-top:1px solid rgba(167,139,250,.15);padding-top:12px;">
+            <div style="font-size:8px;font-weight:700;letter-spacing:2px;color:#a78bfa;text-transform:uppercase;margin-bottom:9px;">🧠 REVISÃO HUBERMAN</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px;">
+              <button class="hub-rev-btn" onclick="hubRevStart(5,'5 min')">5 min</button>
+              <button class="hub-rev-btn" onclick="hubRevStart(9,'9 min')">9 min</button>
+              <button class="hub-rev-btn" onclick="hubRevStart(11,'11 min')">11 min ⭐</button>
+              <input id="hub-rev-inp" type="number" min="1" max="120" placeholder="min"
+                style="width:50px;text-align:center;background:#0f1b2d;border:1px solid rgba(167,139,250,.25);border-radius:8px;color:#a78bfa;font-size:11px;font-weight:700;padding:5px;outline:none;font-family:monospace;">
+              <button class="hub-rev-btn" onclick="hubRevStart(parseInt(document.getElementById('hub-rev-inp').value)||15,'Personalizado')">+ Min</button>
+            </div>
+            <div id="hub-rev-active" style="display:none;flex-direction:row;align-items:center;gap:8px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.3);border-radius:10px;padding:8px 11px;">
+              <span style="font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;font-weight:700;" id="hub-rev-lbl">REVISÃO</span>
+              <span style="font-family:monospace;font-size:1.25rem;font-weight:800;color:#f1f5f9;flex:1;text-align:center;letter-spacing:1px;" id="hub-rev-display">00:00</span>
+              <button onclick="hubRevCancel()" style="background:none;border:1px solid rgba(248,113,113,.35);border-radius:7px;color:#f87171;font-size:10px;font-weight:700;cursor:pointer;padding:3px 8px;font-family:inherit;white-space:nowrap;">✕ Cancelar</button>
+            </div>
           </div>
         </div>
 
@@ -16616,15 +16640,15 @@ function cronStop() {
     flash(`✅ Sessão encerrada: ${formatHM(secs)} — ${cronState.discName||'Geral'}${assMsg}${qMsg}`, '#10b981');
   }
 
-  // Reset UI
-  cronState.elapsed = 0;
+  // Reset UI — mantém tempo exibido até clicar em Zerar
+  const _finalSecs = cronState.mode === 'chrono' ? cronState.elapsed : (cronState.total - cronState.elapsed);
   cronState.assunto = '';
   const assuntoBadge = document.getElementById('cron-assunto-tec-badge');
   if (assuntoBadge) assuntoBadge.style.display = 'none';
   cronUpdateBtns('idle');
-  cronSetBadge('PRONTO','rgba(90,106,138,.2)','#6b7280','rgba(90,106,138,.25)');
-  cronSetDigits(0, '#f9fafb');
-  const lbl=document.getElementById('cron-status-lbl'); if(lbl)lbl.textContent='PRONTO PARA ESTUDAR';
+  cronSetBadge('ENCERRADO','rgba(100,116,139,.15)','#64748b','rgba(100,116,139,.25)');
+  cronSetDigits(_finalSecs, '#64748b');
+  const lbl=document.getElementById('cron-status-lbl'); if(lbl)lbl.textContent='SESSÃO ENCERRADA — CLIQUE EM ZERAR';
   const stats=document.getElementById('cron-stats-row'); if(stats)stats.style.display='none';
   const counts=document.getElementById('cron-count-row'); if(counts)counts.style.display='none';
   cronUpdateTodayLog();
@@ -16698,21 +16722,25 @@ function cronSetBadge(txt,bg,color,border) {
 }
 
 function cronUpdateBtns(state) {
-  const s = document.getElementById('cron-btn-start');
-  const p = document.getElementById('cron-btn-pause');
-  const r = document.getElementById('cron-btn-resume');
-  const e = document.getElementById('cron-btn-stop');
+  const s   = document.getElementById('cron-btn-start');
+  const p   = document.getElementById('cron-btn-pause');
+  const r   = document.getElementById('cron-btn-resume');
+  const e   = document.getElementById('cron-btn-stop');
+  const rst = document.getElementById('cron-btn-reset');
   const stats  = document.getElementById('cron-stats-row');
   const counts = document.getElementById('cron-count-row');
   if (state === 'idle') {
     if(s)s.style.display=''; if(p)p.style.display='none'; if(r)r.style.display='none'; if(e)e.style.display='none';
+    if(rst) rst.style.display = (cronState.elapsed > 0) ? '' : 'none';
     if(stats)stats.style.display='none'; if(counts)counts.style.display='none';
   } else if (state === 'running') {
     if(s)s.style.display='none'; if(p)p.style.display=''; if(r)r.style.display='none'; if(e)e.style.display='';
+    if(rst)rst.style.display='none';
     if(stats)stats.style.display=''; if(counts)counts.style.display='';
     cronSetBadge('ATIVO','rgba(74,108,247,.15)','#4a6cf7','rgba(74,108,247,.3)');
   } else if (state === 'paused') {
     if(s)s.style.display='none'; if(p)p.style.display='none'; if(r)r.style.display=''; if(e)e.style.display='';
+    if(rst)rst.style.display='none';
   }
 }
 
@@ -19255,6 +19283,103 @@ async function pwaInstall(){
   const { outcome } = await _deferredPrompt.userChoice;
   if(outcome === 'accepted') flash('✅ Instalando…', '#22d3ee');
   _deferredPrompt = null;
+}
+</script>
+
+<!-- ═══ CRONÔMETRO: ZERAR MANUAL + REVISÃO HUBERMAN ══════════════════════ -->
+<script>
+// ── Zerar cronômetro manualmente ──────────────────────────────────────────
+function cronReset() {
+  cronState.elapsed = 0;
+  cronSetDigits(0, null);
+  const rst = document.getElementById('cron-btn-reset');
+  if (rst) rst.style.display = 'none';
+  cronSetBadge('PRONTO','rgba(90,106,138,.2)','#6b7280','rgba(90,106,138,.25)');
+  const lbl = document.getElementById('cron-status-lbl');
+  if (lbl) lbl.textContent = 'PRONTO PARA ESTUDAR';
+}
+
+// ── Huberman Review Timer ─────────────────────────────────────────────────
+const hubRevState = { running: false, total: 0, elapsed: 0, interval: null, label: '' };
+
+function hubRevStart(mins, label) {
+  if (!mins || isNaN(mins) || mins < 1) { flash('Informe um valor válido de minutos', '#ef4444'); return; }
+  clearInterval(hubRevState.interval);
+  hubRevState.total   = mins * 60;
+  hubRevState.elapsed = 0;
+  hubRevState.running = true;
+  hubRevState.label   = label || (mins + ' min');
+  hubRevState.interval = setInterval(hubRevTick, 1000);
+  hubRevUpdateUI();
+  flash('🧠 Revisão em ' + mins + ' min iniciada', '#a78bfa');
+  // Solicitar permissão de notificação se ainda não tiver
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function hubRevTick() {
+  hubRevState.elapsed++;
+  if (hubRevState.elapsed >= hubRevState.total) {
+    clearInterval(hubRevState.interval);
+    hubRevState.running = false;
+    hubRevDone();
+    return;
+  }
+  hubRevUpdateUI();
+}
+
+function hubRevCancel() {
+  clearInterval(hubRevState.interval);
+  hubRevState.running = false;
+  const el = document.getElementById('hub-rev-active');
+  if (el) el.style.display = 'none';
+  document.querySelectorAll('.hub-rev-btn').forEach(b => b.classList.remove('hub-rev-active-btn'));
+  flash('🧠 Revisão cancelada', '#64748b');
+}
+
+function hubRevDone() {
+  const el = document.getElementById('hub-rev-active');
+  if (el) el.style.display = 'none';
+  document.querySelectorAll('.hub-rev-btn').forEach(b => b.classList.remove('hub-rev-active-btn'));
+  flash('🧠 HORA DE REVISAR! ' + hubRevState.label + ' concluídos.', '#a78bfa');
+  // Notificação do browser
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      new Notification('🧠 Painel Fiscal — Revisão Huberman', {
+        body: 'Tempo de revisar! ' + hubRevState.label + ' se passaram.',
+        requireInteraction: true
+      });
+    } catch(e) {}
+  }
+  // Beep
+  try {
+    const ctx = new AudioContext();
+    [880, 1100, 880].forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.28;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+      osc.start(t); osc.stop(t + 0.22);
+    });
+  } catch(e) {}
+}
+
+function hubRevUpdateUI() {
+  const el = document.getElementById('hub-rev-active');
+  if (!el) return;
+  el.style.display = 'flex';
+  const remaining = Math.max(0, hubRevState.total - hubRevState.elapsed);
+  const m = Math.floor(remaining / 60);
+  const s = remaining % 60;
+  const disp = document.getElementById('hub-rev-display');
+  if (disp) disp.textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  const lbl = document.getElementById('hub-rev-lbl');
+  if (lbl) lbl.textContent = hubRevState.label.toUpperCase();
 }
 </script>
 
